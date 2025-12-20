@@ -18,19 +18,28 @@ function getWsUrl(path) {
     return `${protocol}//${host}${path}`;
 }
 
+// Export config for room.js immediately
+window.FEKO_CONFIG = {
+    getApiUrl,
+    getWsUrl
+};
+
 // Navigation handling
 function navigate() {
     const path = window.location.pathname;
-    // Handle both localhost:8787/keyword and ajtazer.github.io/FekoYaha/keyword
     const segments = path.split('/').filter(Boolean);
 
     let keyword = null;
 
-    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-        keyword = segments[0];
+    // Check if we are on GitHub Pages (ajtazer.github.io)
+    if (window.location.hostname.includes('github.io')) {
+        if (segments.length >= 2) {
+            keyword = segments[1];
+        }
     } else {
-        // On GitHub Pages, segments[0] is usually the repo name 'FekoYaha'
-        keyword = segments[1];
+        if (segments.length >= 1) {
+            keyword = segments[0];
+        }
     }
 
     if (keyword && validateKeyword(keyword)) {
@@ -51,40 +60,40 @@ function showRoom(keyword) {
     roomPage.style.display = 'flex';
     document.getElementById('roomKeywordDisplay').textContent = keyword;
     window.ROOM_KEYWORD = keyword;
-    if (window.initRoom) window.initRoom();
+
+    const startInit = () => {
+        if (typeof window.initRoom === 'function') {
+            window.initRoom();
+        } else {
+            // Retry until room.js is loaded
+            setTimeout(startInit, 200);
+        }
+    };
+    startInit();
 }
 
-// Keyword validation
 const KEYWORD_REGEX = /^[a-z0-9][a-z0-9-]*[a-z0-9]$|^[a-z0-9]$/;
 
 function validateKeyword(keyword) {
     return keyword.length >= 1 && keyword.length <= 32 && KEYWORD_REGEX.test(keyword);
 }
 
-// Auto-lowercase input
 keywordInput.addEventListener('input', (e) => {
     const value = e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '');
     e.target.value = value;
 });
 
-// Handle form submission
 roomForm.addEventListener('submit', (e) => {
     e.preventDefault();
     const keyword = keywordInput.value.trim().toLowerCase();
 
-    if (!keyword) {
-        keywordInput.focus();
+    if (!keyword || !validateKeyword(keyword)) {
+        alert('Invalid keyword. Use 2-32 lowercase letters, numbers, and hyphens.');
         return;
     }
 
-    if (!validateKeyword(keyword)) {
-        alert('Invalid keyword. Use lowercase letters, numbers, and hyphens (2-32 characters).');
-        return;
-    }
-
-    // Update URL and navigate
     let baseUrl = window.location.origin;
-    if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+    if (window.location.hostname.includes('github.io')) {
         baseUrl += '/FekoYaha';
     }
 
@@ -92,28 +101,19 @@ roomForm.addEventListener('submit', (e) => {
     navigate();
 });
 
-// Back to home
 document.getElementById('backToHome').addEventListener('click', (e) => {
     e.preventDefault();
     let baseUrl = window.location.origin;
-    if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+    if (window.location.hostname.includes('github.io')) {
         baseUrl += '/FekoYaha';
     }
     window.history.pushState({}, '', baseUrl + '/');
     navigate();
 });
 
-// Initial navigation
 window.addEventListener('popstate', navigate);
 navigate();
 
-// Focus input on load
 if (homePage.style.display !== 'none') {
     keywordInput.focus();
 }
-
-// Export config for room.js
-window.FEKO_CONFIG = {
-    getApiUrl,
-    getWsUrl
-};

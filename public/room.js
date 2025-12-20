@@ -51,6 +51,8 @@
         const keyword = window.ROOM_KEYWORD;
         if (!keyword) return;
 
+        console.log('[Room] Initializing keyword:', keyword);
+
         // Reset state
         if (ws) {
             ws.close();
@@ -64,8 +66,17 @@
         modalMessage.textContent = 'Please wait while we check if this room exists.';
 
         try {
-            const response = await fetch(window.FEKO_CONFIG.getApiUrl('/api/room/' + keyword + '/info'));
+            if (!window.FEKO_CONFIG) {
+                throw new Error('FEKO_CONFIG not ready');
+            }
+            const infoUrl = window.FEKO_CONFIG.getApiUrl('/api/room/' + keyword + '/info');
+            console.log('[Room] Fetching info from:', infoUrl);
+
+            const response = await fetch(infoUrl);
+            if (!response.ok) throw new Error('API responded with ' + response.status);
+
             const data = await response.json();
+            console.log('[Room] Info received:', data);
 
             if (data.exists) {
                 showJoinPrompt();
@@ -73,7 +84,8 @@
                 showCreatePrompt();
             }
         } catch (error) {
-            showError('Failed to connect to backend. Make sure the Worker is deployed.');
+            console.error('[Room] Init error:', error);
+            showError('Failed to connect to backend: ' + error.message);
         }
     };
 

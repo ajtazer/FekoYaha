@@ -212,8 +212,9 @@ body {
   font-size: 1.25rem;
 }
 
-/* Galaxy Background */
+/* Galaxy Background - Disabled due to glitching */
 .galaxy-container {
+  display: none;
   position: fixed;
   inset: 0;
   width: 100%;
