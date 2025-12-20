@@ -1,0 +1,16 @@
+{
+  "name": "fekoyaha",
+  "version": "1.0.0",
+  "description": "Simple, persistent, no-login web-based sharing room",
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "tail": "wrangler tail"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20241205.0",
+    "typescript": "^5.3.3",
+    "wrangler": "^4.0.0"
+  }
+}
