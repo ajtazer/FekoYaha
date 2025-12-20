@@ -83,15 +83,19 @@
             const isActive = Date.now() - room.lastActiveAt < 5 * 60 * 1000;
 
             tr.innerHTML = `
-                <td><strong>${room.keyword}</strong></td>
+                <td>${room.keyword}</td>
                 <td>${formatTimeIST(room.createdAt)}</td>
                 <td>${formatTimeIST(room.lastActiveAt)}</td>
                 <td>
-                    <span class="status-dot ${isActive ? 'status-online' : 'status-idle'}"></span>
-                    ${isActive ? 'Active' : 'Idle'}
+                    <span class="status-badge ${isActive ? 'status-online' : 'status-idle'}">
+                        ${isActive ? 'Online' : 'Idle'}
+                    </span>
                 </td>
                 <td>
-                    <button class="btn-admin" onclick="viewRoom('${room.keyword}')">Inspect</button>
+                    <button class="btn-admin" onclick="viewRoom('${room.keyword}')">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                        Inspect
+                    </button>
                 </td>
             `;
             roomsList.appendChild(tr);
@@ -146,11 +150,25 @@
 
             // Stats
             document.getElementById('roomStats').innerHTML = `
-                <p>Messages: ${data.messages.length}</p>
-                <p>Locked: ${data.isLocked ? 'Yes' : 'No'}</p>
+                <div class="participant-card">
+                    <strong>Current Persistence</strong>
+                    <span>Messages: ${data.messages.length}</span>
+                    <span>Status: ${data.isLocked ? 'Room Locked' : 'Public Access'}</span>
+                </div>
             `;
 
-            document.getElementById('lockBtn').textContent = data.isLocked ? 'Unlock Room' : 'Lock Room';
+            const lockBtn = document.getElementById('lockBtn');
+            if (data.isLocked) {
+                lockBtn.innerHTML = `
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>
+                    Unlock Room
+                `;
+            } else {
+                lockBtn.innerHTML = `
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                    Lock Room
+                `;
+            }
 
         } catch (err) {
             console.error('Failed to fetch room details', err);

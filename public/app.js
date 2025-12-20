@@ -50,31 +50,36 @@ function navigate() {
 }
 
 function showHome() {
-    document.body.style.overflow = '';
-    homePage.style.display = 'flex';
-    roomPage.style.display = 'none';
-    keywordInput.focus();
+    if (homePage) {
+        document.body.style.overflow = '';
+        homePage.style.display = 'flex';
+        if (roomPage) roomPage.style.display = 'none';
+        if (keywordInput) keywordInput.focus();
+    }
 }
 
 function showRoom(keyword) {
-    document.body.style.overflow = 'hidden';
-    homePage.style.display = 'none';
-    roomPage.style.display = 'flex';
-    document.getElementById('roomKeywordDisplay').textContent = keyword;
-    window.ROOM_KEYWORD = keyword;
+    if (roomPage) {
+        document.body.style.overflow = 'hidden';
+        if (homePage) homePage.style.display = 'none';
+        roomPage.style.display = 'flex';
+        const display = document.getElementById('roomKeywordDisplay');
+        if (display) display.textContent = keyword;
+        window.ROOM_KEYWORD = keyword;
 
-    const startInit = () => {
-        if (typeof window.initRoom === 'function') {
-            window.initRoom();
-        } else {
-            // Retry until room.js is loaded
-            setTimeout(startInit, 200);
-        }
-    };
-    startInit();
+        const startInit = () => {
+            if (typeof window.initRoom === 'function') {
+                window.initRoom();
+            } else {
+                // Retry until room.js is loaded
+                setTimeout(startInit, 200);
+            }
+        };
+        startInit();
+    }
 }
 
-const KEYWORD_REGEX = /^[a-z0-9][a-z0-9-_]*[a-z0-9]$|^[a-z0-9]$/;
+const KEYWORD_REGEX = /^[a-z0-9]{1,32}$/;
 
 function validateKeyword(keyword) {
     return keyword.length >= 1 && keyword.length <= 32 && KEYWORD_REGEX.test(keyword);
@@ -82,7 +87,7 @@ function validateKeyword(keyword) {
 
 if (keywordInput) {
     keywordInput.addEventListener('input', (e) => {
-        const value = e.target.value.toLowerCase().replace(/[^a-z0-9-_]/g, '');
+        const value = e.target.value.toLowerCase().replace(/[^a-z0-9]/g, '');
         e.target.value = value;
     });
 }
@@ -92,13 +97,8 @@ if (roomForm) {
         e.preventDefault();
         const keyword = keywordInput.value.trim().toLowerCase();
 
-        if (keyword === '__admin__') {
-            window.location.href = 'admin.html';
-            return;
-        }
-
         if (!keyword || !validateKeyword(keyword)) {
-            alert('Invalid keyword. Use 2-32 lowercase letters, numbers, and hyphens.');
+            alert('Invalid keyword. Use 1-32 lowercase letters and numbers only.');
             return;
         }
 
@@ -128,6 +128,6 @@ if (backToHome) {
 window.addEventListener('popstate', navigate);
 navigate();
 
-if (homePage.style.display !== 'none') {
-    keywordInput.focus();
+if (homePage && homePage.style.display !== 'none') {
+    if (keywordInput) keywordInput.focus();
 }

@@ -4,12 +4,11 @@ import { Room } from './room';
 // Export the Room Durable Object
 export { Room };
 
-// Keyword validation: lowercase, alphanumeric + hyphen, max 32 chars
-const KEYWORD_REGEX = /^[a-z0-9][a-z0-9-_]*[a-z0-9]$|^[a-z0-9]$/;
+// Keyword validation: lowercase, alphanumeric only, max 32 chars
+const KEYWORD_REGEX = /^[a-z0-9]{1,32}$/;
 
 function validateKeyword(keyword: string): boolean {
-  if (keyword === '__admin__') return false; // Reserved
-  return KEYWORD_REGEX.test(keyword) && keyword.length <= 32;
+  return KEYWORD_REGEX.test(keyword);
 }
 
 export default {
