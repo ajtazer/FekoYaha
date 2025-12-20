@@ -6,32 +6,32 @@
   --bg-tertiary: #111111;
   --bg-glass: rgba(0, 0, 0, 0.85);
   --bg-glass-light: rgba(20, 20, 20, 0.7);
-  
+
   --text-primary: #ffffff;
   --text-secondary: #a0e0e0;
   --text-muted: #508080;
-  
+
   --accent-primary: #00d4d4;
   --accent-secondary: #00ffff;
   --accent-glow: rgba(0, 212, 212, 0.4);
-  
+
   --success: #10b981;
   --warning: #f59e0b;
   --error: #ef4444;
-  
+
   --border-color: rgba(0, 212, 212, 0.15);
   --border-hover: rgba(0, 255, 255, 0.25);
-  
+
   --radius-sm: 8px;
   --radius-md: 12px;
   --radius-lg: 16px;
   --radius-xl: 24px;
-  
+
   --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.5);
   --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.6);
   --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.7);
   --shadow-glow: 0 0 40px var(--accent-glow);
-  
+
   --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
@@ -41,7 +41,8 @@
   box-sizing: border-box;
 }
 
-html, body {
+html,
+body {
   height: 100%;
   font-family: var(--font-family);
   background: var(--bg-primary);
@@ -92,8 +93,15 @@ html, body {
 }
 
 @keyframes pulse {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.1); }
+
+  0%,
+  100% {
+    transform: scale(1);
+  }
+
+  50% {
+    transform: scale(1.1);
+  }
 }
 
 .logo h1 {
@@ -210,7 +218,8 @@ html, body {
   inset: 0;
   width: 100%;
   height: 100%;
-  z-index: 0;
+  z-index: -1;
+  pointer-events: none;
 }
 
 .galaxy-container canvas {
@@ -223,6 +232,9 @@ html, body {
   height: 100vh;
   display: flex;
   flex-direction: column;
+  background: radial-gradient(circle at center, #0a0a0a 0%, #000000 100%);
+  position: relative;
+  z-index: 1;
 }
 
 .room-container {
@@ -335,8 +347,15 @@ html, body {
 }
 
 @keyframes blink {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.5;
+  }
 }
 
 /* Modals */
@@ -367,6 +386,7 @@ html, body {
     opacity: 0;
     transform: scale(0.95) translateY(10px);
   }
+
   to {
     opacity: 1;
     transform: scale(1) translateY(0);
@@ -463,6 +483,7 @@ html, body {
     opacity: 0;
     transform: translateY(10px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -555,8 +576,15 @@ html, body {
 }
 
 @keyframes bounce {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-5px); }
+
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-5px);
+  }
 }
 
 /* Composer */
@@ -746,29 +774,29 @@ html, body {
   .hero-content {
     padding: 2rem 1.5rem;
   }
-  
+
   .logo h1 {
     font-size: 2rem;
   }
-  
+
   .features {
     grid-template-columns: 1fr;
   }
-  
+
   .room-header {
     flex-wrap: wrap;
     gap: 0.75rem;
   }
-  
+
   .room-actions {
     width: 100%;
     justify-content: space-between;
   }
-  
+
   .action-btn span {
     display: none;
   }
-  
+
   .message-image {
     max-width: 100%;
   }

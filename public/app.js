@@ -20,10 +20,20 @@ function getWsUrl(path) {
 
 // Navigation handling
 function navigate() {
-    const params = new URLSearchParams(window.location.search);
-    const keyword = params.get('room');
+    const path = window.location.pathname;
+    // Handle both localhost:8787/keyword and ajtazer.github.io/FekoYaha/keyword
+    const segments = path.split('/').filter(Boolean);
 
-    if (keyword) {
+    let keyword = null;
+
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+        keyword = segments[0];
+    } else {
+        // On GitHub Pages, segments[0] is usually the repo name 'FekoYaha'
+        keyword = segments[1];
+    }
+
+    if (keyword && validateKeyword(keyword)) {
         showRoom(keyword);
     } else {
         showHome();
@@ -73,18 +83,23 @@ roomForm.addEventListener('submit', (e) => {
     }
 
     // Update URL and navigate
-    const newUrl = new URL(window.location.href);
-    newUrl.searchParams.set('room', keyword);
-    window.history.pushState({}, '', newUrl);
+    let baseUrl = window.location.origin;
+    if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+        baseUrl += '/FekoYaha';
+    }
+
+    window.history.pushState({}, '', `${baseUrl}/${keyword}`);
     navigate();
 });
 
 // Back to home
 document.getElementById('backToHome').addEventListener('click', (e) => {
     e.preventDefault();
-    const newUrl = new URL(window.location.href);
-    newUrl.searchParams.delete('room');
-    window.history.pushState({}, '', newUrl);
+    let baseUrl = window.location.origin;
+    if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+        baseUrl += '/FekoYaha';
+    }
+    window.history.pushState({}, '', baseUrl + '/');
     navigate();
 });
 
