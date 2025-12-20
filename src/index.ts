@@ -5,7 +5,7 @@ import { Room } from './room';
 export { Room };
 
 // Keyword validation: lowercase, alphanumeric + hyphen, max 32 chars
-const KEYWORD_REGEX = /^[a-z0-9][a-z0-9-]{0,30}[a-z0-9]$|^[a-z0-9]$/;
+const KEYWORD_REGEX = /^[a-z0-9][a-z0-9-_]*[a-z0-9]$|^[a-z0-9]$/;
 
 function validateKeyword(keyword: string): boolean {
   if (keyword === '__admin__') return false; // Reserved

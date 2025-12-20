@@ -217,7 +217,7 @@ export class Room implements DurableObject {
     // Send history to new client
     this.sendToClient(server, {
       type: 'history',
-      payload: { messages: this.messages.slice(-100) }, // Last 100 messages
+      payload: { messages: this.messages.slice(-300) }, // Last 300 messages
     });
 
     // Send current users list

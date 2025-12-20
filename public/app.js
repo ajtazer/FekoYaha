@@ -74,14 +74,14 @@ function showRoom(keyword) {
     startInit();
 }
 
-const KEYWORD_REGEX = /^[a-z0-9][a-z0-9-]*[a-z0-9]$|^[a-z0-9]$/;
+const KEYWORD_REGEX = /^[a-z0-9][a-z0-9-_]*[a-z0-9]$|^[a-z0-9]$/;
 
 function validateKeyword(keyword) {
     return keyword.length >= 1 && keyword.length <= 32 && KEYWORD_REGEX.test(keyword);
 }
 
 keywordInput.addEventListener('input', (e) => {
-    const value = e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '');
+    const value = e.target.value.toLowerCase().replace(/[^a-z0-9-_]/g, '');
     e.target.value = value;
 });
 

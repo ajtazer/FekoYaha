@@ -205,13 +205,45 @@
         }
     }
 
+    let allMessages = [];
+    let displayedCount = 0;
+    const PAGE_SIZE = 25;
+
     function renderHistory(messages) {
+        allMessages = messages;
         messagesList.innerHTML = '';
-        messages.forEach(msg => appendMessage(msg, false));
-        scrollToBottom();
+        displayedCount = 0;
+
+        loadMoreMessages(true);
     }
 
-    function appendMessage(msg, animate = true) {
+    function loadMoreMessages(isInitial = false) {
+        if (displayedCount >= allMessages.length) return;
+
+        const nextCount = Math.min(displayedCount + PAGE_SIZE, allMessages.length);
+        const toShow = allMessages.slice(allMessages.length - nextCount, allMessages.length - displayedCount);
+
+        // Save scroll position for non-initial loads
+        const oldScrollHeight = messagesArea.scrollHeight;
+        const oldScrollTop = messagesArea.scrollTop;
+
+        // Prepend messages (order: oldest to newest in the chunk)
+        toShow.reverse().forEach(msg => {
+            const div = createMessageElement(msg, false);
+            messagesList.insertBefore(div, messagesList.firstChild);
+        });
+
+        displayedCount = nextCount;
+
+        if (isInitial) {
+            setTimeout(scrollToBottom, 50);
+        } else {
+            // Restore scroll position so it doesn't jump
+            messagesArea.scrollTop = messagesArea.scrollHeight - oldScrollHeight + oldScrollTop;
+        }
+    }
+
+    function createMessageElement(msg, animate = true) {
         const div = document.createElement('div');
         div.className = 'message' + (msg.type === 'system' ? ' system' : '');
         if (!animate) div.style.animation = 'none';
@@ -238,9 +270,22 @@
           ${contentHtml}
         </div>`;
         }
+        return div;
+    }
 
+    function appendMessage(msg, animate = true) {
+        const div = createMessageElement(msg, animate);
         messagesList.appendChild(div);
-        if (!isScrolledUp) scrollToBottom(); else if (animate) newMessagesBtn.style.display = 'block';
+
+        // Update local buffer
+        allMessages.push(msg);
+        displayedCount++;
+
+        if (!isScrolledUp) {
+            scrollToBottom();
+        } else if (animate) {
+            newMessagesBtn.style.display = 'block';
+        }
     }
 
     function escapeHtml(text) {
@@ -254,8 +299,17 @@
     }
 
     messagesArea.addEventListener('scroll', () => {
-        isScrolledUp = messagesArea.scrollHeight - messagesArea.scrollTop - messagesArea.clientHeight > 100;
-        if (!isScrolledUp) newMessagesBtn.style.display = 'none';
+        const { scrollTop, scrollHeight, clientHeight } = messagesArea;
+        isScrolledUp = scrollHeight - scrollTop - clientHeight > 100;
+
+        if (!isScrolledUp) {
+            newMessagesBtn.style.display = 'none';
+        }
+
+        // Load more if at the top
+        if (scrollTop === 0 && displayedCount < allMessages.length) {
+            loadMoreMessages();
+        }
     });
 
     newMessagesBtn.addEventListener('click', () => {
@@ -331,16 +385,20 @@
         if (!pendingImage) return;
         const keyword = window.ROOM_KEYWORD;
 
-        // Show loader
+        console.log('[Room] Starting sendImage process. Current WebSocket state:', ws?.readyState);
+
+        // Show loader and disable inputs
         sendBtn.disabled = true;
         sendBtn.classList.add('loading');
+        messageInput.disabled = true; // Prevent typing while uploading
+
         const loader = document.createElement('div');
         loader.className = 'upload-overlay';
         loader.innerHTML = '<div class="loader-dot"></div>';
         uploadPreview.appendChild(loader);
 
         try {
-            console.log('[Room] Initiating upload for:', pendingImage.name);
+            console.log('[Room] Step 1: Requesting upload URL for:', pendingImage.name);
             const response = await fetch(window.FEKO_CONFIG.getApiUrl('/api/room/' + keyword + '/upload'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -352,46 +410,49 @@
             });
 
             if (!response.ok) {
-                const err = await response.json();
+                const err = await response.json().catch(() => ({ error: 'Unknown server error' }));
                 throw new Error(err.error || 'Failed to get upload URL');
             }
 
             const data = await response.json();
             const { key, fileUrl, uploadUrl } = data;
 
+            console.log('[Room] Step 2: Uploading file to R2 via Worker:', uploadUrl);
             const formData = new FormData();
             formData.append('file', pendingImage);
             formData.append('key', key);
 
-            console.log('[Room] Uploading file to:', uploadUrl);
             const uploadResponse = await fetch(window.FEKO_CONFIG.getApiUrl(uploadUrl), {
                 method: 'POST',
                 body: formData
             });
 
             if (uploadResponse.ok) {
-                console.log('[Room] Upload successful, fileUrl:', fileUrl);
-                // Ensure we get the correct fileUrl which might be in the response body too
-                const result = await uploadResponse.json();
+                console.log('[Room] Step 3: Upload successful! Parsing response...');
+                // The worker returns JSON with { success: true, fileUrl: ... }
+                const result = await uploadResponse.json().catch(() => ({}));
                 const finalUrl = result.fileUrl || fileUrl;
 
+                console.log('[Room] Step 4: Sending WebSocket message for image:', finalUrl);
                 sendMessage('image', finalUrl);
+
+                // Clear state
                 removePreview.click();
             } else {
-                let errorMsg = 'Failed to upload file';
-                try {
-                    const err = await uploadResponse.json();
-                    errorMsg = err.error || errorMsg;
-                } catch (e) { }
-                throw new Error(errorMsg);
+                const errBody = await uploadResponse.text();
+                console.error('[Room] Upload failed on R2 stage:', errBody);
+                throw new Error('R2 Upload failed: ' + (errBody || uploadResponse.statusText));
             }
         } catch (e) {
-            console.error('[Room] Upload error:', e);
+            console.error('[Room] CATASTROPHIC UPLOAD ERROR:', e);
             alert('Upload failed: ' + e.message);
         } finally {
+            console.log('[Room] Resetting UI state after upload attempt');
             sendBtn.disabled = false;
             sendBtn.classList.remove('loading');
+            messageInput.disabled = false;
             if (loader.parentNode) loader.parentNode.removeChild(loader);
+            messageInput.focus();
         }
     }
 
