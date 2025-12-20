@@ -326,21 +326,49 @@
     async function sendImage() {
         if (!pendingImage) return;
         const keyword = window.ROOM_KEYWORD;
+        sendBtn.disabled = true;
+
         try {
+            console.log('[Room] Initiating upload for:', pendingImage.name);
             const response = await fetch(window.FEKO_CONFIG.getApiUrl('/api/room/' + keyword + '/upload'), {
                 method: 'POST',
-                body: JSON.stringify({ filename: pendingImage.name, contentType: pendingImage.type, size: pendingImage.size }),
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    filename: pendingImage.name || 'image.png',
+                    contentType: pendingImage.type || 'image/png',
+                    size: pendingImage.size
+                }),
             });
+
+            if (!response.ok) {
+                const err = await response.json();
+                throw new Error(err.error || 'Failed to get upload URL');
+            }
+
             const { key, fileUrl, uploadUrl } = await response.json();
             const formData = new FormData();
             formData.append('file', pendingImage);
             formData.append('key', key);
-            const uploadResponse = await fetch(window.FEKO_CONFIG.getApiUrl(uploadUrl), { method: 'POST', body: formData });
+
+            console.log('[Room] Uploading file to:', uploadUrl);
+            const uploadResponse = await fetch(window.FEKO_CONFIG.getApiUrl(uploadUrl), {
+                method: 'POST',
+                body: formData
+            });
+
             if (uploadResponse.ok) {
+                console.log('[Room] Upload successful, sending message');
                 sendMessage('image', fileUrl);
                 removePreview.click();
+            } else {
+                const err = await uploadResponse.json();
+                throw new Error(err.error || 'Failed to upload file');
             }
-        } catch (e) { alert('Upload failed'); }
+        } catch (e) {
+            console.error('[Room] Upload error:', e);
+            alert('Upload failed: ' + e.message);
+            sendBtn.disabled = false;
+        }
     }
 
     copyLinkBtn.addEventListener('click', async () => {

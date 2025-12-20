@@ -28,3 +28,10 @@ id = "316894477eef4443b43cb11b6c243de1"
 [dev]
 port = 8787
 local_protocol = "http"
+
+# Workers Logs for observability
+[observability.logs]
+enabled = true
+head_sampling_rate = 1
+invocation_logs = true
+persist = true

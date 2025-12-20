@@ -50,12 +50,14 @@ function navigate() {
 }
 
 function showHome() {
+    document.body.style.overflow = '';
     homePage.style.display = 'flex';
     roomPage.style.display = 'none';
     keywordInput.focus();
 }
 
 function showRoom(keyword) {
+    document.body.style.overflow = 'hidden';
     homePage.style.display = 'none';
     roomPage.style.display = 'flex';
     document.getElementById('roomKeywordDisplay').textContent = keyword;
