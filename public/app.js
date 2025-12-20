@@ -80,43 +80,50 @@ function validateKeyword(keyword) {
     return keyword.length >= 1 && keyword.length <= 32 && KEYWORD_REGEX.test(keyword);
 }
 
-keywordInput.addEventListener('input', (e) => {
-    const value = e.target.value.toLowerCase().replace(/[^a-z0-9-_]/g, '');
-    e.target.value = value;
-});
+if (keywordInput) {
+    keywordInput.addEventListener('input', (e) => {
+        const value = e.target.value.toLowerCase().replace(/[^a-z0-9-_]/g, '');
+        e.target.value = value;
+    });
+}
 
-roomForm.addEventListener('submit', (e) => {
-    e.preventDefault();
-    const keyword = keywordInput.value.trim().toLowerCase();
+if (roomForm) {
+    roomForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const keyword = keywordInput.value.trim().toLowerCase();
 
-    if (keyword === '__admin__') {
-        window.location.href = 'admin.html';
-        return;
-    }
+        if (keyword === '__admin__') {
+            window.location.href = 'admin.html';
+            return;
+        }
 
-    if (!keyword || !validateKeyword(keyword)) {
-        alert('Invalid keyword. Use 2-32 lowercase letters, numbers, and hyphens.');
-        return;
-    }
+        if (!keyword || !validateKeyword(keyword)) {
+            alert('Invalid keyword. Use 2-32 lowercase letters, numbers, and hyphens.');
+            return;
+        }
 
-    let baseUrl = window.location.origin;
-    if (window.location.hostname.includes('github.io')) {
-        baseUrl += '/FekoYaha';
-    }
+        let baseUrl = window.location.origin;
+        if (window.location.hostname.includes('github.io')) {
+            baseUrl += '/FekoYaha';
+        }
 
-    window.history.pushState({}, '', `${baseUrl}/${keyword}`);
-    navigate();
-});
+        window.history.pushState({}, '', `${baseUrl}/${keyword}`);
+        navigate();
+    });
+}
 
-document.getElementById('backToHome').addEventListener('click', (e) => {
-    e.preventDefault();
-    let baseUrl = window.location.origin;
-    if (window.location.hostname.includes('github.io')) {
-        baseUrl += '/FekoYaha';
-    }
-    window.history.pushState({}, '', baseUrl + '/');
-    navigate();
-});
+const backToHome = document.getElementById('backToHome');
+if (backToHome) {
+    backToHome.addEventListener('click', (e) => {
+        e.preventDefault();
+        let baseUrl = window.location.origin;
+        if (window.location.hostname.includes('github.io')) {
+            baseUrl += '/FekoYaha';
+        }
+        window.history.pushState({}, '', baseUrl + '/');
+        navigate();
+    });
+}
 
 window.addEventListener('popstate', navigate);
 navigate();

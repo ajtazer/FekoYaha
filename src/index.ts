@@ -85,11 +85,16 @@ export default {
         const doUrl = new URL(request.url);
         doUrl.pathname = '/admin' + path.split('/room/' + keyword)[1];
 
-        return room.fetch(new Request(doUrl.toString(), {
+        const response = await room.fetch(new Request(doUrl.toString(), {
           method: request.method,
           headers: request.headers,
           body: request.body,
         }));
+
+        // Add CORS headers to the response
+        const newResponse = new Response(response.body, response);
+        Object.entries(corsHeaders).forEach(([k, v]) => newResponse.headers.set(k, v));
+        return newResponse;
       }
     }
 
