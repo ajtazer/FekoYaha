@@ -163,19 +163,12 @@ export default {
         headers.set('X-Client-IP', ip);
         if (cf) headers.set('X-Client-CF', JSON.stringify(cf));
 
-        // Update last active in KV (and create entry if missing)
-        ctx.waitUntil(env.KV.get(`room:${keyword}`).then(val => {
-          const data = val ? JSON.parse(val) : {
-            keyword,
-            createdAt: Date.now(), // Fallback if unknown
-          };
-          data.lastActiveAt = Date.now();
-          return env.KV.put(`room:${keyword}`, JSON.stringify(data));
-        }));
-
         // Proxy the request to the Room Durable Object
-        // Using the original request ensures the WebSocket handshake is perfectly preserved
-        return room.fetch(new Request(wsUrl.toString(), request));
+        // Using a new Request with custom headers ensures metadata is passed along
+        return room.fetch(new Request(wsUrl.toString(), {
+          method: request.method,
+          headers: headers,
+        }));
       }
 
       // ... (rest remains same but I'll update it for completeness in one block if possible)

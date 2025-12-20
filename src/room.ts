@@ -112,16 +112,25 @@ export class Room implements DurableObject {
       case 'lock':
         this.isLocked = !this.isLocked;
         await this.state.storage.put('isLocked', this.isLocked);
+
+        // Broadcast both a system message AND a status update
+        const lockMsg = `Room has been ${this.isLocked ? 'locked (read-only)' : 'unlocked'} by admin`;
         this.broadcast({
           type: 'message',
           payload: {
             id: crypto.randomUUID(),
             type: 'system',
-            content: `Room has been ${this.isLocked ? 'locked (read-only)' : 'unlocked'} by admin`,
+            content: lockMsg,
             sender: { nickname: 'System', color: '#888888' },
             timestamp: Date.now()
           }
         });
+
+        this.broadcast({
+          type: 'room-status',
+          payload: { isLocked: this.isLocked }
+        } as any);
+
         return new Response(JSON.stringify({ success: true, isLocked: this.isLocked }));
 
       case 'delete':

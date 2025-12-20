@@ -78,6 +78,13 @@
             const data = await response.json();
             console.log('[Room] Info received:', data);
 
+            // Hide composer if room is locked
+            if (data.isLocked) {
+                composer.style.display = 'none';
+            } else {
+                composer.style.display = 'block';
+            }
+
             if (data.exists) {
                 showJoinPrompt();
             } else {
@@ -237,6 +244,17 @@
             case 'history': renderHistory(data.payload.messages); break;
             case 'message': appendMessage(data.payload); break;
             case 'users': userCountNum.textContent = data.payload.count; break;
+            case 'room-status':
+                if (data.payload.isLocked) {
+                    composer.style.display = 'none';
+                } else {
+                    composer.style.display = 'block';
+                    messageInput.focus();
+                }
+                break;
+            case 'error':
+                alert(data.payload.message);
+                break;
         }
     }
 

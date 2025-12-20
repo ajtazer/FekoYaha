@@ -47,6 +47,33 @@
         window.location.reload();
     };
 
+    function formatTimeIST(timestamp) {
+        return new Date(timestamp).toLocaleString('en-IN', {
+            timeZone: 'Asia/Kolkata',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: true
+        });
+    }
+
+    function parseUA(ua) {
+        if (!ua || ua === 'unknown') return { browser: 'Unknown', device: 'Unknown' };
+
+        let browser = 'Other';
+        let device = 'PC/Laptop';
+
+        if (ua.includes('Mobi')) device = 'Mobile';
+        if (ua.includes('Tablet')) device = 'Tablet';
+
+        if (ua.includes('Chrome')) browser = 'Chrome';
+        else if (ua.includes('Firefox')) browser = 'Firefox';
+        else if (ua.includes('Safari') && !ua.includes('Chrome')) browser = 'Safari';
+        else if (ua.includes('Edge')) browser = 'Edge';
+
+        return { browser, device };
+    }
+
     function renderRooms(data) {
         roomsList.innerHTML = '';
         const rooms = data.rooms.sort((a, b) => b.lastActiveAt - a.lastActiveAt);
@@ -57,8 +84,8 @@
 
             tr.innerHTML = `
                 <td><strong>${room.keyword}</strong></td>
-                <td>${new Date(room.createdAt).toLocaleString()}</td>
-                <td>${new Date(room.lastActiveAt).toLocaleString()}</td>
+                <td>${formatTimeIST(room.createdAt)}</td>
+                <td>${formatTimeIST(room.lastActiveAt)}</td>
                 <td>
                     <span class="status-dot ${isActive ? 'status-online' : 'status-idle'}"></span>
                     ${isActive ? 'Active' : 'Idle'}
@@ -100,15 +127,22 @@
 
             // Render Participants
             const pList = document.getElementById('participantsList');
-            pList.innerHTML = data.participants.map(p => `
-                <div class="participant-card">
-                    <strong>${p.nickname}</strong>
-                    <span>IP: ${p.ip}</span>
-                    <span>Loc: ${p.cf?.city || 'Unknown'}, ${p.cf?.country || ''}</span>
-                    <span>Joined: ${new Date(p.joinedAt).toLocaleTimeString()}</span>
-                    <span title="${p.ua}">Browser: ${p.ua.slice(0, 30)}...</span>
-                </div>
-            `).join('') || '<p style="color: var(--text-muted);">No active users</p>';
+            pList.innerHTML = data.participants.map(p => {
+                const uaInfo = parseUA(p.ua);
+                const city = p.cf?.city || 'Unknown';
+                const country = p.cf?.country || '';
+                const location = city !== 'Unknown' ? `${city}, ${country}` : 'Unknown';
+
+                return `
+                    <div class="participant-card">
+                        <strong>${p.nickname}</strong>
+                        <span>IP: ${p.ip === 'unknown' ? 'Detected' : p.ip}</span>
+                        <span>Loc: ${location}</span>
+                        <span>Joined: ${formatTimeIST(p.joinedAt)}</span>
+                        <span>Device: ${uaInfo.device} (${uaInfo.browser})</span>
+                    </div>
+                `;
+            }).join('') || '<p style="color: var(--text-muted);">No active users</p>';
 
             // Stats
             document.getElementById('roomStats').innerHTML = `
