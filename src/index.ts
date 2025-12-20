@@ -168,9 +168,9 @@ export default {
           return env.KV.put(`room:${keyword}`, JSON.stringify(data));
         }));
 
-        return room.fetch(new Request(wsUrl.toString(), {
-          headers: headers,
-        }));
+        // Proxy the request to the Room Durable Object
+        // Using the original request ensures the WebSocket handshake is perfectly preserved
+        return room.fetch(new Request(wsUrl.toString(), request));
       }
 
       // ... (rest remains same but I'll update it for completeness in one block if possible)

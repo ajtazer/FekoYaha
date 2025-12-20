@@ -36,7 +36,7 @@ export interface Message {
 
 // WebSocket message payloads
 export interface WSMessage {
-  type: 'join' | 'leave' | 'message' | 'history' | 'users' | 'error' | 'room-info';
+  type: 'join' | 'leave' | 'message' | 'history' | 'users' | 'error' | 'room-info' | 'ping' | 'pong';
   payload: unknown;
 }
 

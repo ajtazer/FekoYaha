@@ -166,28 +166,63 @@
         connectWebSocket();
     });
 
+    let heartbeatInterval = null;
+
     function connectWebSocket() {
         const keyword = window.ROOM_KEYWORD;
         const wsUrl = window.FEKO_CONFIG.getWsUrl('/api/room/' + keyword + '/ws?nickname=' + encodeURIComponent(nickname) + '&color=' + encodeURIComponent(color));
 
+        console.log('[Room] Connecting to WebSocket:', wsUrl);
         ws = new WebSocket(wsUrl);
 
         ws.onopen = () => {
+            console.log('[Room] WebSocket connected');
             reconnectAttempts = 0;
             showComposer();
+            startHeartbeat();
         };
 
         ws.onmessage = (event) => {
-            const data = JSON.parse(event.data);
-            handleMessage(data);
-        };
-
-        ws.onclose = () => {
-            if (reconnectAttempts < 5) {
-                reconnectAttempts++;
-                setTimeout(connectWebSocket, 1000 * reconnectAttempts);
+            try {
+                const data = JSON.parse(event.data);
+                if (data.type === 'pong') return; // Silence heartbeats
+                handleMessage(data);
+            } catch (e) {
+                console.error('[Room] Failed to parse message:', e, event.data);
             }
         };
+
+        ws.onclose = (e) => {
+            console.warn('[Room] WebSocket closed:', e.code, e.reason);
+            stopHeartbeat();
+            if (reconnectAttempts < 10) {
+                reconnectAttempts++;
+                console.log(`[Room] Reconnecting... (Attempt ${reconnectAttempts})`);
+                setTimeout(connectWebSocket, Math.min(1000 * reconnectAttempts, 5000));
+            } else {
+                alert('Connection lost. Please refresh the page.');
+            }
+        };
+
+        ws.onerror = (e) => {
+            console.error('[Room] WebSocket Error:', e);
+        };
+    }
+
+    function startHeartbeat() {
+        stopHeartbeat();
+        heartbeatInterval = setInterval(() => {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: 'ping' }));
+            }
+        }, 15000); // Send ping every 15s to keep DO alive
+    }
+
+    function stopHeartbeat() {
+        if (heartbeatInterval) {
+            clearInterval(heartbeatInterval);
+            heartbeatInterval = null;
+        }
     }
 
     function showComposer() {

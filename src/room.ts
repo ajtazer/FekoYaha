@@ -1,8 +1,8 @@
 import type { Env, Message, Sender, WSMessage, RoomMetadata, MessageType } from './types';
 
 interface ConnectedClient {
-  webSocket: WebSocket;
-  sender: Sender;
+  nickname: string;
+  color: string;
   joinedAt: number;
   ip: string;
   ua: string;
@@ -12,7 +12,6 @@ interface ConnectedClient {
 export class Room implements DurableObject {
   private state: DurableObjectState;
   private env: Env;
-  private clients: Map<WebSocket, ConnectedClient> = new Map();
   private messages: Message[] = [];
   private metadata: RoomMetadata | null = null;
   private isLocked: boolean = false;
@@ -86,17 +85,22 @@ export class Room implements DurableObject {
 
     switch (action) {
       case 'info':
+        const participants = this.state.getWebSockets().map(ws => {
+          const meta = ws.deserializeAttachment() as ConnectedClient;
+          return meta ? {
+            nickname: meta.nickname,
+            joinedAt: meta.joinedAt,
+            ip: meta.ip,
+            ua: meta.ua,
+            cf: meta.cf
+          } : null;
+        }).filter(Boolean);
+
         return new Response(JSON.stringify({
           metadata: this.metadata,
           messages: this.messages,
           isLocked: this.isLocked,
-          participants: Array.from(this.clients.values()).map(c => ({
-            nickname: c.sender.nickname,
-            joinedAt: c.joinedAt,
-            ip: c.ip,
-            ua: c.ua,
-            cf: c.cf
-          }))
+          participants: participants
         }), { headers: { 'Content-Type': 'application/json' } });
 
       case 'clear':
@@ -130,9 +134,7 @@ export class Room implements DurableObject {
           payload: { message: 'This room has been deleted by an administrator.' }
         });
         // Disconnect everyone
-        for (const [ws] of this.clients) {
-          ws.close(1000, "Room deleted");
-        }
+        this.state.getWebSockets().forEach(ws => ws.close(1000, "Room deleted"));
         this.messages = [];
         this.metadata = null;
         return new Response(JSON.stringify({ success: true }));
@@ -199,40 +201,39 @@ export class Room implements DurableObject {
     const pair = new WebSocketPair();
     const [client, server] = Object.values(pair);
 
-    // Accept the WebSocket connection
-    this.state.acceptWebSocket(server);
-
-    // Get nickname and color from query params
+    // Get metadata
     const nickname = url.searchParams.get('nickname') || 'Anonymous';
     const color = url.searchParams.get('color') || this.generateColor();
-
-    // Metadata from headers (passed by worker)
     const ip = request.headers.get('X-Client-IP') || 'unknown';
     const ua = request.headers.get('User-Agent') || 'unknown';
     const cfRaw = request.headers.get('X-Client-CF');
     const cf = cfRaw ? JSON.parse(cfRaw) : null;
 
-    const sender: Sender = { nickname, color };
-
-    this.clients.set(server, {
-      webSocket: server,
-      sender,
+    const meta: ConnectedClient = {
+      nickname,
+      color,
       joinedAt: Date.now(),
       ip,
       ua,
       cf
-    });
+    };
 
-    // Send history to new client
+    // Store metadata on the server-side socket
+    this.state.acceptWebSocket(server);
+    server.serializeAttachment(meta);
+
+    // Initial signals
     this.sendToClient(server, {
       type: 'history',
-      payload: { messages: this.messages.slice(-300) }, // Last 300 messages
+      payload: { messages: this.messages.slice(-300) },
     });
 
-    // Send current users list
-    this.broadcastUsers();
+    this.broadcastJoin(nickname, color);
 
-    // Broadcast join message
+    return new Response(null, { status: 101, webSocket: client });
+  }
+
+  private broadcastJoin(nickname: string, color: string) {
     const joinMessage: Message = {
       id: crypto.randomUUID(),
       type: 'system',
@@ -243,110 +244,84 @@ export class Room implements DurableObject {
 
     this.messages.push(joinMessage);
     this.saveMessages();
-    this.broadcast({
-      type: 'message',
-      payload: joinMessage,
-    });
-
-    return new Response(null, { status: 101, webSocket: client });
+    this.broadcast({ type: 'message', payload: joinMessage });
+    this.broadcastUsers();
   }
 
   async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer): Promise<void> {
-    const client = this.clients.get(ws);
-    if (!client) return;
+    const meta = ws.deserializeAttachment() as ConnectedClient;
+    if (!meta) return;
 
     try {
       const data = JSON.parse(message as string) as WSMessage;
-      console.log(`[Room:${this.metadata?.keyword}] WS message from ${client.sender.nickname}: ${data.type}`);
+      console.log(`[Room:${this.metadata?.keyword}] WS from ${meta.nickname}: ${data.type}`);
 
       switch (data.type) {
+        case 'ping':
+          this.sendToClient(ws, { type: 'pong' } as any);
+          break;
         case 'message':
-          await this.handleMessage(client, data.payload as { type: MessageType; content: string });
+          await this.handleMessage(ws, meta, data.payload as { type: MessageType; content: string });
           break;
       }
     } catch (error) {
-      console.error(`[Room] WebSocket message parse error:`, error);
-      this.sendToClient(ws, {
-        type: 'error',
-        payload: { message: 'Invalid message format' },
-      });
+      console.error(`[Room] WS parse error:`, error);
     }
   }
 
   async webSocketClose(ws: WebSocket, code: number, reason: string, wasClean: boolean): Promise<void> {
-    const client = this.clients.get(ws);
-    if (client) {
-      // Broadcast leave message
+    const meta = ws.deserializeAttachment() as ConnectedClient;
+    if (meta) {
       const leaveMessage: Message = {
         id: crypto.randomUUID(),
         type: 'system',
-        content: `${client.sender.nickname} left the room`,
+        content: `${meta.nickname} left the room`,
         sender: { nickname: 'System', color: '#888888' },
         timestamp: Date.now(),
       };
 
       this.messages.push(leaveMessage);
       this.saveMessages();
-
-      this.clients.delete(ws);
-
-      this.broadcast({
-        type: 'message',
-        payload: leaveMessage,
-      });
-
+      this.broadcast({ type: 'message', payload: leaveMessage });
       this.broadcastUsers();
     }
   }
 
   async webSocketError(ws: WebSocket, error: unknown): Promise<void> {
-    const client = this.clients.get(ws);
-    if (client) {
-      this.clients.delete(ws);
-      this.broadcastUsers();
-    }
+    this.broadcastUsers();
   }
 
-  private async handleMessage(client: ConnectedClient, payload: { type: MessageType; content: string }): Promise<void> {
-    // Check if room is locked
+  private async handleMessage(ws: WebSocket, meta: ConnectedClient, payload: { type: MessageType; content: string }): Promise<void> {
     if (this.isLocked) {
-      this.sendToClient(client.webSocket, {
+      this.sendToClient(ws, {
         type: 'error',
-        payload: { message: 'This room is currently read-only (locked by admin).' }
+        payload: { message: 'Room is read-only.' }
       });
       return;
     }
 
-    // Validate content
-    if (!payload.content || payload.content.trim().length === 0) {
-      return;
-    }
-
-    // Rate limiting check could go here
+    if (!payload.content || payload.content.trim().length === 0) return;
 
     const message: Message = {
       id: crypto.randomUUID(),
       type: payload.type || 'text',
       content: payload.content.trim(),
-      sender: client.sender,
+      sender: { nickname: meta.nickname, color: meta.color },
       timestamp: Date.now(),
     };
 
     this.messages.push(message);
 
-    // Trim old messages if over limit
     if (this.metadata && this.messages.length > this.metadata.settings.maxMessages) {
       this.messages = this.messages.slice(-this.metadata.settings.maxMessages);
     }
 
     await this.saveMessages();
 
-    // Update last active time
     if (this.metadata) {
       this.metadata.lastActiveAt = Date.now();
       await this.state.storage.put('metadata', this.metadata);
 
-      // Update KV in background
       this.env.KV.get(`room:${this.metadata.keyword}`).then(val => {
         if (val) {
           const data = JSON.parse(val);
@@ -356,11 +331,7 @@ export class Room implements DurableObject {
       });
     }
 
-    // Broadcast to all clients
-    this.broadcast({
-      type: 'message',
-      payload: message,
-    });
+    this.broadcast({ type: 'message', payload: message });
   }
 
   private async saveMessages(): Promise<void> {
@@ -369,17 +340,17 @@ export class Room implements DurableObject {
 
   private broadcast(message: WSMessage): void {
     const data = JSON.stringify(message);
-    for (const [ws] of this.clients) {
-      try {
-        ws.send(data);
-      } catch (error) {
-        // Client disconnected, will be cleaned up
-      }
-    }
+    this.state.getWebSockets().forEach(ws => {
+      try { ws.send(data); } catch (e) { }
+    });
   }
 
   private broadcastUsers(): void {
-    const users = Array.from(this.clients.values()).map(c => c.sender);
+    const users = this.state.getWebSockets().map(ws => {
+      const meta = ws.deserializeAttachment() as ConnectedClient;
+      return meta ? { nickname: meta.nickname, color: meta.color } : null;
+    }).filter(Boolean);
+
     this.broadcast({
       type: 'users',
       payload: { users, count: users.length },
@@ -387,19 +358,11 @@ export class Room implements DurableObject {
   }
 
   private sendToClient(ws: WebSocket, message: WSMessage): void {
-    try {
-      ws.send(JSON.stringify(message));
-    } catch (error) {
-      // Client disconnected
-    }
+    try { ws.send(JSON.stringify(message)); } catch (e) { }
   }
 
   private generateColor(): string {
-    const colors = [
-      '#E91E63', '#9C27B0', '#673AB7', '#3F51B5',
-      '#2196F3', '#00BCD4', '#009688', '#4CAF50',
-      '#FF9800', '#FF5722', '#795548', '#607D8B',
-    ];
+    const colors = ['#E91E63', '#9C27B0', '#673AB7', '#3F51B5', '#2196F3', '#00BCD4', '#009688', '#4CAF50', '#FF9800', '#FF5722', '#795548', '#607D8B'];
     return colors[Math.floor(Math.random() * colors.length)];
   }
 }
