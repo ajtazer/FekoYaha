@@ -4,6 +4,9 @@ interface ConnectedClient {
   webSocket: WebSocket;
   sender: Sender;
   joinedAt: number;
+  ip: string;
+  ua: string;
+  cf: any;
 }
 
 export class Room implements DurableObject {
@@ -12,6 +15,7 @@ export class Room implements DurableObject {
   private clients: Map<WebSocket, ConnectedClient> = new Map();
   private messages: Message[] = [];
   private metadata: RoomMetadata | null = null;
+  private isLocked: boolean = false;
 
   constructor(state: DurableObjectState, env: Env) {
     this.state = state;
@@ -28,6 +32,11 @@ export class Room implements DurableObject {
       if (meta) {
         this.metadata = meta;
       }
+
+      const locked = await this.state.storage.get<boolean>('isLocked');
+      if (locked !== undefined) {
+        this.isLocked = locked;
+      }
     });
   }
 
@@ -36,6 +45,11 @@ export class Room implements DurableObject {
 
     // Log all Durable Object requests
     console.log(`[Room:${this.metadata?.keyword || 'new'}] ${request.method} ${url.pathname}`);
+
+    // Admin commands
+    if (url.pathname.startsWith('/admin/')) {
+      return this.handleAdminRequest(request, url);
+    }
 
     // Handle room info request
     if (url.pathname === '/info') {
@@ -58,6 +72,67 @@ export class Room implements DurableObject {
     return new Response('Not Found', { status: 404 });
   }
 
+  private async handleAdminRequest(request: Request, url: URL): Promise<Response> {
+    const action = url.pathname.slice(7); // After "/admin/"
+
+    switch (action) {
+      case 'info':
+        return new Response(JSON.stringify({
+          metadata: this.metadata,
+          messages: this.messages,
+          isLocked: this.isLocked,
+          participants: Array.from(this.clients.values()).map(c => ({
+            nickname: c.sender.nickname,
+            joinedAt: c.joinedAt,
+            ip: c.ip,
+            ua: c.ua,
+            cf: c.cf
+          }))
+        }), { headers: { 'Content-Type': 'application/json' } });
+
+      case 'clear':
+        this.messages = [];
+        await this.state.storage.put('messages', []);
+        this.broadcast({ type: 'history', payload: { messages: [] } });
+        return new Response(JSON.stringify({ success: true }));
+
+      case 'lock':
+        this.isLocked = !this.isLocked;
+        await this.state.storage.put('isLocked', this.isLocked);
+        this.broadcast({
+          type: 'message',
+          payload: {
+            id: crypto.randomUUID(),
+            type: 'system',
+            content: `Room has been ${this.isLocked ? 'locked (read-only)' : 'unlocked'} by admin`,
+            sender: { nickname: 'System', color: '#888888' },
+            timestamp: Date.now()
+          }
+        });
+        return new Response(JSON.stringify({ success: true, isLocked: this.isLocked }));
+
+      case 'delete':
+        if (this.metadata) {
+          await this.env.KV.delete(`room:${this.metadata.keyword}`);
+        }
+        await this.state.storage.deleteAll();
+        this.broadcast({
+          type: 'error',
+          payload: { message: 'This room has been deleted by an administrator.' }
+        });
+        // Disconnect everyone
+        for (const [ws] of this.clients) {
+          ws.close(1000, "Room deleted");
+        }
+        this.messages = [];
+        this.metadata = null;
+        return new Response(JSON.stringify({ success: true }));
+
+      default:
+        return new Response('Unknown admin action', { status: 400 });
+    }
+  }
+
   private handleRoomInfo(): Response {
     const exists = this.metadata !== null;
     return new Response(JSON.stringify({
@@ -65,6 +140,7 @@ export class Room implements DurableObject {
       keyword: this.metadata?.keyword || '',
       createdAt: this.metadata?.createdAt,
       messageCount: this.messages.length,
+      isLocked: this.isLocked,
     }), {
       headers: { 'Content-Type': 'application/json' },
     });
@@ -121,12 +197,21 @@ export class Room implements DurableObject {
     const nickname = url.searchParams.get('nickname') || 'Anonymous';
     const color = url.searchParams.get('color') || this.generateColor();
 
+    // Metadata from headers (passed by worker)
+    const ip = request.headers.get('X-Client-IP') || 'unknown';
+    const ua = request.headers.get('User-Agent') || 'unknown';
+    const cfRaw = request.headers.get('X-Client-CF');
+    const cf = cfRaw ? JSON.parse(cfRaw) : null;
+
     const sender: Sender = { nickname, color };
 
     this.clients.set(server, {
       webSocket: server,
       sender,
       joinedAt: Date.now(),
+      ip,
+      ua,
+      cf
     });
 
     // Send history to new client
@@ -214,6 +299,15 @@ export class Room implements DurableObject {
   }
 
   private async handleMessage(client: ConnectedClient, payload: { type: MessageType; content: string }): Promise<void> {
+    // Check if room is locked
+    if (this.isLocked) {
+      this.sendToClient(client.webSocket, {
+        type: 'error',
+        payload: { message: 'This room is currently read-only (locked by admin).' }
+      });
+      return;
+    }
+
     // Validate content
     if (!payload.content || payload.content.trim().length === 0) {
       return;
@@ -242,6 +336,15 @@ export class Room implements DurableObject {
     if (this.metadata) {
       this.metadata.lastActiveAt = Date.now();
       await this.state.storage.put('metadata', this.metadata);
+
+      // Update KV in background
+      this.env.KV.get(`room:${this.metadata.keyword}`).then(val => {
+        if (val) {
+          const data = JSON.parse(val);
+          data.lastActiveAt = Date.now();
+          return this.env.KV.put(`room:${this.metadata!.keyword}`, JSON.stringify(data));
+        }
+      });
     }
 
     // Broadcast to all clients

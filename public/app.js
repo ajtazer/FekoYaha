@@ -89,6 +89,11 @@ roomForm.addEventListener('submit', (e) => {
     e.preventDefault();
     const keyword = keywordInput.value.trim().toLowerCase();
 
+    if (keyword === '__admin__') {
+        window.location.href = 'admin.html';
+        return;
+    }
+
     if (!keyword || !validateKeyword(keyword)) {
         alert('Invalid keyword. Use 2-32 lowercase letters, numbers, and hyphens.');
         return;

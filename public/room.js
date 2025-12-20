@@ -49,7 +49,7 @@
 
     window.initRoom = async function () {
         const keyword = window.ROOM_KEYWORD;
-        if (!keyword) return;
+        if (!keyword || keyword === '__admin__') return;
 
         console.log('[Room] Initializing keyword:', keyword);
 
@@ -289,7 +289,11 @@
 
     function sendMessage(type, content) {
         if (ws && ws.readyState === WebSocket.OPEN) {
+            console.log('[Room] Sending message:', type);
             ws.send(JSON.stringify({ type: 'message', payload: { type, content } }));
+        } else {
+            console.warn('[Room] Cannot send message: WebSocket not open', { type, state: ws?.readyState });
+            alert('Connection lost. Please wait a moment or refresh.');
         }
     }
 
@@ -326,7 +330,14 @@
     async function sendImage() {
         if (!pendingImage) return;
         const keyword = window.ROOM_KEYWORD;
+
+        // Show loader
         sendBtn.disabled = true;
+        sendBtn.classList.add('loading');
+        const loader = document.createElement('div');
+        loader.className = 'upload-overlay';
+        loader.innerHTML = '<div class="loader-dot"></div>';
+        uploadPreview.appendChild(loader);
 
         try {
             console.log('[Room] Initiating upload for:', pendingImage.name);
@@ -345,7 +356,9 @@
                 throw new Error(err.error || 'Failed to get upload URL');
             }
 
-            const { key, fileUrl, uploadUrl } = await response.json();
+            const data = await response.json();
+            const { key, fileUrl, uploadUrl } = data;
+
             const formData = new FormData();
             formData.append('file', pendingImage);
             formData.append('key', key);
@@ -357,17 +370,28 @@
             });
 
             if (uploadResponse.ok) {
-                console.log('[Room] Upload successful, sending message');
-                sendMessage('image', fileUrl);
+                console.log('[Room] Upload successful, fileUrl:', fileUrl);
+                // Ensure we get the correct fileUrl which might be in the response body too
+                const result = await uploadResponse.json();
+                const finalUrl = result.fileUrl || fileUrl;
+
+                sendMessage('image', finalUrl);
                 removePreview.click();
             } else {
-                const err = await uploadResponse.json();
-                throw new Error(err.error || 'Failed to upload file');
+                let errorMsg = 'Failed to upload file';
+                try {
+                    const err = await uploadResponse.json();
+                    errorMsg = err.error || errorMsg;
+                } catch (e) { }
+                throw new Error(errorMsg);
             }
         } catch (e) {
             console.error('[Room] Upload error:', e);
             alert('Upload failed: ' + e.message);
+        } finally {
             sendBtn.disabled = false;
+            sendBtn.classList.remove('loading');
+            if (loader.parentNode) loader.parentNode.removeChild(loader);
         }
     }
 
