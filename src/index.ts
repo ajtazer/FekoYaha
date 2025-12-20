@@ -156,7 +156,7 @@ export default {
         wsUrl.search = url.search;
 
         const cf = (request as any).cf;
-        const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
+        const ip = request.headers.get('Cf-Pseudo-IPv4') || request.headers.get('CF-Connecting-IP') || 'unknown';
 
         // Pass IP and CF metadata to DO via headers
         const headers = new Headers(request.headers);

@@ -11,6 +11,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
+  <link rel="icon" href="assets/icon.png" type="image/png">
   <script type="text/javascript">
     // Single Page Apps for GitHub Pages
     // https://github.com/rafgraph/spa-github-pages
@@ -30,45 +31,72 @@
 <body>
   <!-- Homepage -->
   <div id="homePage" class="homepage">
-    <div class="hero">
-      <div class="hero-content">
+    <div class="stars-container"></div>
+    <div class="glass-card">
+      <div class="hero">
         <div class="logo">
-          <span class="logo-icon">📡</span>
-          <h1>FekoYaha</h1>
+          <img src="assets/icon.png" alt="FekoYaha Logo" class="logo-img"
+            style="width: 80px; height: 80px; margin-bottom: 1rem; filter: drop-shadow(0 0 12px rgba(99, 102, 241, 0.8));">
+          <h1 class="brand-title">Feko Yaha</h1>
         </div>
-        <p class="tagline">Share anything. Access anywhere. No signup needed.</p>
+
+        <h2 class="main-headline">Throw it here.</h2>
+        <p class="tagline">No signup. No tracking. Just share.</p>
 
         <form class="room-form" id="roomForm">
           <div class="input-wrapper">
-            <input type="text" id="keywordInput" placeholder="Enter a keyword to create or join a room"
+            <input type="text" id="keywordInput" placeholder="Create or join a room by typing a keyword"
               autocomplete="off" spellcheck="false" maxlength="32">
-            <button type="submit" id="enterBtn">
-              <span>Enter</span>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M5 12h14M12 5l7 7-7 7" />
+            <button type="submit" id="enterBtn" class="pill-btn">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"
+                stroke-linecap="round" stroke-linejoin="round">
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+                <polyline points="12 5 19 12 12 19"></polyline>
               </svg>
             </button>
           </div>
-          <p class="hint">Use lowercase letters, numbers, and hyphens (e.g., my-notes, work2025)</p>
         </form>
 
-        <div class="features">
-          <div class="feature">
-            <span class="feature-icon">💬</span>
-            <span>Real-time chat</span>
+        <div class="features-grid">
+          <div class="feature-item">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+            </svg>
+            <span>real-time</span>
           </div>
-          <div class="feature">
-            <span class="feature-icon">🖼️</span>
-            <span>Paste images</span>
+          <div class="feature-item">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+              <circle cx="8.5" cy="8.5" r="1.5" />
+              <polyline points="21 15 16 10 5 21" />
+            </svg>
+            <span>images</span>
           </div>
-          <div class="feature">
-            <span class="feature-icon">💾</span>
-            <span>Persistent storage</span>
+          <div class="feature-item">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round">
+              <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
+              <line x1="8" y1="21" x2="16" y2="21" />
+              <line x1="12" y1="17" x2="12" y2="21" />
+            </svg>
+            <span>cross-device</span>
           </div>
-          <div class="feature">
-            <span class="feature-icon">📱</span>
-            <span>Cross-device</span>
+          <div class="feature-item">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round">
+              <ellipse cx="12" cy="5" rx="9" ry="3" />
+              <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3" />
+              <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" />
+            </svg>
+            <span>persistent</span>
           </div>
+        </div>
+
+        <div class="footer-note">
+          <p>wid antigravity on random saturday</p>
+          <p class="credits">Made with <span>❤️</span> by <strong>tazer</strong></p>
         </div>
       </div>
     </div>
