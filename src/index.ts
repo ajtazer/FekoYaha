@@ -158,13 +158,14 @@ export default {
         headers.set('X-Client-IP', ip);
         if (cf) headers.set('X-Client-CF', JSON.stringify(cf));
 
-        // Update last active in KV
+        // Update last active in KV (and create entry if missing)
         ctx.waitUntil(env.KV.get(`room:${keyword}`).then(val => {
-          if (val) {
-            const data = JSON.parse(val);
-            data.lastActiveAt = Date.now();
-            return env.KV.put(`room:${keyword}`, JSON.stringify(data));
-          }
+          const data = val ? JSON.parse(val) : {
+            keyword,
+            createdAt: Date.now(), // Fallback if unknown
+          };
+          data.lastActiveAt = Date.now();
+          return env.KV.put(`room:${keyword}`, JSON.stringify(data));
         }));
 
         return room.fetch(new Request(wsUrl.toString(), {

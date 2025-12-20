@@ -43,6 +43,15 @@ export class Room implements DurableObject {
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
 
+    // Self-healing: Ensure room is tracked in KV
+    if (this.metadata) {
+      this.state.waitUntil(this.env.KV.put(`room:${this.metadata.keyword}`, JSON.stringify({
+        keyword: this.metadata.keyword,
+        createdAt: this.metadata.createdAt,
+        lastActiveAt: Date.now()
+      })));
+    }
+
     // Log all Durable Object requests
     console.log(`[Room:${this.metadata?.keyword || 'new'}] ${request.method} ${url.pathname}`);
 
