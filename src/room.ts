@@ -9,12 +9,23 @@ interface ConnectedClient {
   cf: any;
 }
 
+interface HistoricalParticipant {
+  nickname: string;
+  color: string;
+  firstJoinedAt: number;
+  lastSeenAt: number;
+  ip: string;
+  ua: string;
+  cf: any;
+}
+
 export class Room implements DurableObject {
   private state: DurableObjectState;
   private env: Env;
   private messages: Message[] = [];
   private metadata: RoomMetadata | null = null;
   private isLocked: boolean = false;
+  private allParticipants: HistoricalParticipant[] = [];
 
   constructor(state: DurableObjectState, env: Env) {
     this.state = state;
@@ -35,6 +46,11 @@ export class Room implements DurableObject {
       const locked = await this.state.storage.get<boolean>('isLocked');
       if (locked !== undefined) {
         this.isLocked = locked;
+      }
+
+      const participants = await this.state.storage.get<HistoricalParticipant[]>('allParticipants');
+      if (participants) {
+        this.allParticipants = participants;
       }
     });
   }
@@ -85,22 +101,24 @@ export class Room implements DurableObject {
 
     switch (action) {
       case 'info':
-        const participants = this.state.getWebSockets().map(ws => {
+        // Get currently connected users
+        const activeNicknames = new Set<string>();
+        this.state.getWebSockets().forEach(ws => {
           const meta = ws.deserializeAttachment() as ConnectedClient;
-          return meta ? {
-            nickname: meta.nickname,
-            joinedAt: meta.joinedAt,
-            ip: meta.ip,
-            ua: meta.ua,
-            cf: meta.cf
-          } : null;
-        }).filter(Boolean);
+          if (meta) activeNicknames.add(meta.nickname);
+        });
+
+        // Mark which historical participants are currently active
+        const participantsWithStatus = this.allParticipants.map(p => ({
+          ...p,
+          isOnline: activeNicknames.has(p.nickname)
+        }));
 
         return new Response(JSON.stringify({
           metadata: this.metadata,
           messages: this.messages,
           isLocked: this.isLocked,
-          participants: participants
+          participants: participantsWithStatus
         }), { headers: { 'Content-Type': 'application/json' } });
 
       case 'clear':
@@ -227,6 +245,9 @@ export class Room implements DurableObject {
       cf
     };
 
+    // Track participant in historical list
+    this.trackParticipant(meta);
+
     // Store metadata on the server-side socket
     this.state.acceptWebSocket(server);
     server.serializeAttachment(meta);
@@ -240,6 +261,32 @@ export class Room implements DurableObject {
     this.broadcastJoin(nickname, color);
 
     return new Response(null, { status: 101, webSocket: client });
+  }
+
+  private async trackParticipant(meta: ConnectedClient): Promise<void> {
+    const now = Date.now();
+    const existing = this.allParticipants.find(p => p.nickname === meta.nickname);
+
+    if (existing) {
+      // Update last seen and other details
+      existing.lastSeenAt = now;
+      existing.ip = meta.ip;
+      existing.ua = meta.ua;
+      existing.cf = meta.cf;
+    } else {
+      // Add new participant
+      this.allParticipants.push({
+        nickname: meta.nickname,
+        color: meta.color,
+        firstJoinedAt: now,
+        lastSeenAt: now,
+        ip: meta.ip,
+        ua: meta.ua,
+        cf: meta.cf
+      });
+    }
+
+    await this.state.storage.put('allParticipants', this.allParticipants);
   }
 
   private broadcastJoin(nickname: string, color: string) {

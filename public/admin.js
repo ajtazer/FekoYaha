@@ -30,6 +30,7 @@
             if (resp.ok) {
                 localStorage.setItem('fekoyaha_admin_token', adminToken);
                 loginOverlay.style.display = 'none';
+                document.body.classList.add('authenticated');
                 renderRooms(await resp.json());
             } else {
                 throw new Error('Auth failed');
@@ -47,12 +48,14 @@
         window.location.reload();
     };
 
-    function formatTimeIST(timestamp) {
+    function formatDateTimeIST(timestamp) {
         return new Date(timestamp).toLocaleString('en-IN', {
             timeZone: 'Asia/Kolkata',
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric',
             hour: '2-digit',
             minute: '2-digit',
-            second: '2-digit',
             hour12: true
         });
     }
@@ -78,14 +81,19 @@
         roomsList.innerHTML = '';
         const rooms = data.rooms.sort((a, b) => b.lastActiveAt - a.lastActiveAt);
 
+        if (rooms.length === 0) {
+            roomsList.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 3rem; color: var(--text-muted);">No active rooms found</td></tr>';
+            return;
+        }
+
         rooms.forEach(room => {
             const tr = document.createElement('tr');
             const isActive = Date.now() - room.lastActiveAt < 5 * 60 * 1000;
 
             tr.innerHTML = `
                 <td>${room.keyword}</td>
-                <td>${formatTimeIST(room.createdAt)}</td>
-                <td>${formatTimeIST(room.lastActiveAt)}</td>
+                <td>${formatDateTimeIST(room.createdAt)}</td>
+                <td>${formatDateTimeIST(room.lastActiveAt)}</td>
                 <td>
                     <span class="status-badge ${isActive ? 'status-online' : 'status-idle'}">
                         ${isActive ? 'Online' : 'Idle'}
@@ -129,30 +137,44 @@
             `).join('') || '<p style="color: var(--text-muted); text-align: center;">No messages</p>';
             msgArea.scrollTop = msgArea.scrollHeight;
 
-            // Render Participants
+            // Render Participants (all historical participants)
             const pList = document.getElementById('participantsList');
-            pList.innerHTML = data.participants.map(p => {
+            // Sort: online first, then by last seen
+            const sortedParticipants = [...data.participants].sort((a, b) => {
+                if (a.isOnline && !b.isOnline) return -1;
+                if (!a.isOnline && b.isOnline) return 1;
+                return b.lastSeenAt - a.lastSeenAt;
+            });
+
+            pList.innerHTML = sortedParticipants.map(p => {
                 const uaInfo = parseUA(p.ua);
                 const city = p.cf?.city || 'Unknown';
                 const country = p.cf?.country || '';
                 const location = city !== 'Unknown' ? `${city}, ${country}` : 'Unknown';
+                const statusDot = p.isOnline
+                    ? '<span style="display:inline-block;width:8px;height:8px;background:#10b981;border-radius:50%;margin-right:6px;"></span>'
+                    : '<span style="display:inline-block;width:8px;height:8px;background:#6b7280;border-radius:50%;margin-right:6px;"></span>';
 
                 return `
-                    <div class="participant-card">
-                        <strong>${p.nickname}</strong>
+                    <div class="participant-card" style="${p.isOnline ? 'border-color: rgba(16, 185, 129, 0.3);' : ''}">
+                        <strong>${statusDot}${p.nickname}</strong>
                         <span>IP: ${p.ip === 'unknown' ? 'Detected' : p.ip}</span>
                         <span>Loc: ${location}</span>
-                        <span>Joined: ${formatTimeIST(p.joinedAt)}</span>
+                        <span>First Joined: ${formatDateTimeIST(p.firstJoinedAt)}</span>
+                        <span>Last Seen: ${formatDateTimeIST(p.lastSeenAt)}</span>
                         <span>Device: ${uaInfo.device} (${uaInfo.browser})</span>
                     </div>
                 `;
-            }).join('') || '<p style="color: var(--text-muted);">No active users</p>';
+            }).join('') || '<p style="color: var(--text-muted);">No participants yet</p>';
 
             // Stats
+            const onlineCount = data.participants.filter(p => p.isOnline).length;
             document.getElementById('roomStats').innerHTML = `
                 <div class="participant-card">
-                    <strong>Current Persistence</strong>
+                    <strong>Room Statistics</strong>
                     <span>Messages: ${data.messages.length}</span>
+                    <span>Total Participants: ${data.participants.length}</span>
+                    <span>Currently Online: ${onlineCount}</span>
                     <span>Status: ${data.isLocked ? 'Room Locked' : 'Public Access'}</span>
                 </div>
             `;

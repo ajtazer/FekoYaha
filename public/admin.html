@@ -16,6 +16,8 @@
             --admin-card: rgba(15, 5, 5, 0.6);
             --admin-border: rgba(255, 0, 0, 0.2);
             --admin-surface: rgba(255, 255, 255, 0.03);
+            --admin-accent: #ff3333;
+            --admin-accent-glow: rgba(255, 51, 51, 0.3);
             --text-secondary: #ffffff;
             --text-muted: rgba(255, 255, 255, 0.4);
         }
@@ -39,12 +41,17 @@
             backdrop-filter: blur(20px);
             -webkit-backdrop-filter: blur(20px);
             border-bottom: 1.5px solid var(--admin-border);
-            display: flex;
+            display: none;
+            /* Hidden by default */
             justify-content: space-between;
             align-items: center;
             position: sticky;
             top: 0;
             z-index: 100;
+        }
+
+        body.authenticated .admin-header {
+            display: flex;
         }
 
         .admin-header .logo {
@@ -78,6 +85,12 @@
             max-width: 1400px;
             margin: 0 auto;
             width: 100%;
+            display: none;
+            /* Hidden by default */
+        }
+
+        body.authenticated .admin-container {
+            display: block;
         }
 
         .card {
@@ -290,6 +303,99 @@
             letter-spacing: 1.5px;
             color: rgba(255, 255, 255, 0.4);
             margin-bottom: 1.25rem;
+        }
+
+        /* Login Overlay Styles */
+        #loginOverlay {
+            position: fixed;
+            inset: 0;
+            background: #030000;
+            background-image:
+                radial-gradient(circle at 50% 50%, rgba(255, 0, 0, 0.1) 0%, transparent 60%),
+                url('https://s3-us-west-2.amazonaws.com/s.cdpn.io/1231630/stars.png');
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .login-box {
+            background: rgba(15, 5, 5, 0.8);
+            backdrop-filter: blur(20px);
+            border: 1.5px solid var(--admin-border);
+            border-radius: 32px;
+            padding: 3.5rem;
+            width: 100%;
+            max-width: 440px;
+            text-align: center;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
+        }
+
+        .danger-icon {
+            font-size: 3rem;
+            display: block;
+            margin-bottom: 1.5rem;
+        }
+
+        .login-box h1 {
+            font-size: 1.75rem;
+            letter-spacing: 2px;
+            margin-bottom: 0.5rem;
+            color: #fff;
+        }
+
+        .warning-text {
+            color: #ff3333;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-bottom: 2.5rem;
+            font-weight: 600;
+        }
+
+        .login-input-wrapper {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1.5px solid rgba(255, 0, 0, 0.2);
+            border-radius: 16px;
+            margin-bottom: 1.5rem;
+            transition: all 0.3s;
+        }
+
+        .login-input-wrapper:focus-within {
+            border-color: #ff3333;
+            background: rgba(255, 255, 255, 0.05);
+            box-shadow: 0 0 20px rgba(255, 0, 0, 0.1);
+        }
+
+        .login-input-wrapper input {
+            width: 100%;
+            background: transparent;
+            border: none;
+            padding: 1.25rem;
+            color: #fff;
+            text-align: center;
+            font-size: 1.1rem;
+            outline: none;
+        }
+
+        .login-btn {
+            width: 100%;
+            padding: 1.25rem;
+            border-radius: 16px;
+            background: #ff3333;
+            color: #fff;
+            border: none;
+            font-weight: 700;
+            font-size: 0.9rem;
+            letter-spacing: 1px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .login-btn:hover {
+            background: #ff4444;
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(255, 0, 0, 0.2);
         }
     </style>
 </head>
