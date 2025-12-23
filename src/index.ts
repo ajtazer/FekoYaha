@@ -175,18 +175,27 @@ export default {
       if (parts[4] === 'upload' && request.method === 'POST') {
         const body = await request.json() as { filename: string; contentType: string; size: number };
 
-        // Validate file
-        const maxSize = 20 * 1024 * 1024; // 20MB
+        // Validate file size - 100MB max
+        const maxSize = 100 * 1024 * 1024; // 100MB
         if (body.size > maxSize) {
-          return new Response(JSON.stringify({ error: 'File too large (max 20MB)' }), {
+          return new Response(JSON.stringify({ error: 'File too large (max 100MB)' }), {
             status: 400,
             headers: { 'Content-Type': 'application/json', ...corsHeaders },
           });
         }
 
-        const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+        // Allowed file types
+        const allowedTypes = [
+          // Images
+          'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml',
+          // Videos
+          'video/mp4', 'video/webm', 'video/quicktime', 'video/x-msvideo',
+          // Documents
+          'application/pdf',
+        ];
+
         if (!allowedTypes.includes(body.contentType)) {
-          return new Response(JSON.stringify({ error: 'Invalid file type' }), {
+          return new Response(JSON.stringify({ error: 'Invalid file type. Allowed: images, GIFs, videos, PDFs' }), {
             status: 400,
             headers: { 'Content-Type': 'application/json', ...corsHeaders },
           });

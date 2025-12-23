@@ -9,7 +9,7 @@
     // State
     let ws = null;
     let reconnectAttempts = 0;
-    let pendingImage = null;
+    let pendingFile = null;
     let isScrolledUp = false;
     let nickname = localStorage.getItem('fekoyaha_nickname') || '';
     let color = localStorage.getItem('fekoyaha_color') || '';
@@ -31,8 +31,17 @@
     const messageForm = document.getElementById('messageForm');
     const messageInput = document.getElementById('messageInput');
     const sendBtn = document.getElementById('sendBtn');
+    const attachBtn = document.getElementById('attachBtn');
+    const fileInput = document.getElementById('fileInput');
     const uploadPreview = document.getElementById('uploadPreview');
+    const previewContent = document.getElementById('previewContent');
     const previewImage = document.getElementById('previewImage');
+    const uploadInfo = document.getElementById('uploadInfo');
+    const fileName = document.getElementById('fileName');
+    const fileSize = document.getElementById('fileSize');
+    const uploadProgress = document.getElementById('uploadProgress');
+    const progressBar = document.getElementById('progressBar');
+    const progressText = document.getElementById('progressText');
     const removePreview = document.getElementById('removePreview');
     const userBadge = document.getElementById('userBadge');
     const userColor = document.getElementById('userColor');
@@ -308,9 +317,25 @@
             const time = new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
             let contentHtml = '<p class="message-text">' + escapeHtml(msg.content) + '</p>';
-            if (msg.type === 'image' && msg.content.startsWith('/files/')) {
+
+            if (msg.content.startsWith('/files/')) {
                 const fullUrl = window.FEKO_CONFIG.getApiUrl(msg.content);
-                contentHtml = '<img class="message-image" src="' + fullUrl + '" alt="Shared image" onclick="window.openLightbox(this.src)">';
+
+                if (msg.type === 'image') {
+                    contentHtml = '<img class="message-image" src="' + fullUrl + '" alt="Shared image" onclick="window.openLightbox(this.src)">';
+                } else if (msg.type === 'video') {
+                    contentHtml = `<video class="message-video" src="${fullUrl}" controls playsinline preload="metadata"></video>`;
+                } else if (msg.type === 'pdf') {
+                    const filename = msg.content.split('/').pop();
+                    contentHtml = `
+                        <a href="${fullUrl}" target="_blank" class="message-file">
+                            <span class="file-icon">📄</span>
+                            <span class="file-details">
+                                <span class="file-name">${escapeHtml(filename)}</span>
+                                <span class="file-action">Click to open PDF</span>
+                            </span>
+                        </a>`;
+                }
             }
 
             div.innerHTML = `
@@ -371,7 +396,7 @@
     });
 
     messageInput.addEventListener('input', () => {
-        sendBtn.disabled = !messageInput.value.trim() && !pendingImage;
+        sendBtn.disabled = !messageInput.value.trim() && !pendingFile;
         messageInput.style.height = 'auto';
         messageInput.style.height = Math.min(messageInput.scrollHeight, 150) + 'px';
     });
@@ -379,13 +404,13 @@
     messageInput.addEventListener('keydown', (e) => {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
-            if (messageInput.value.trim() || pendingImage) messageForm.dispatchEvent(new Event('submit'));
+            if (messageInput.value.trim() || pendingFile) messageForm.dispatchEvent(new Event('submit'));
         }
     });
 
     messageForm.addEventListener('submit', async (e) => {
         e.preventDefault();
-        if (pendingImage) { await sendImage(); return; }
+        if (pendingFile) { await sendFile(); return; }
         const content = messageInput.value.trim();
         if (!content) return;
         sendMessage('text', content);
@@ -404,6 +429,19 @@
         }
     }
 
+    // Attach button click
+    attachBtn.addEventListener('click', () => {
+        fileInput.click();
+    });
+
+    // File input change
+    fileInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) handleFile(file);
+        fileInput.value = ''; // Reset for re-selection
+    });
+
+    // Paste handler
     messageInput.addEventListener('paste', (e) => {
         const items = e.clipboardData?.items;
         if (!items) return;
@@ -411,54 +449,108 @@
             if (item.type.startsWith('image/')) {
                 e.preventDefault();
                 const file = item.getAsFile();
-                if (file) handleImageFile(file);
+                if (file) handleFile(file);
             }
         }
     });
 
-    function handleImageFile(file) {
-        if (file.size > 20 * 1024 * 1024) { alert('Image too large (max 20MB)'); return; }
-        pendingImage = file;
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            previewImage.src = e.target.result;
-            uploadPreview.style.display = 'block';
-            sendBtn.disabled = false;
-        };
-        reader.readAsDataURL(file);
+    // Format file size
+    function formatFileSize(bytes) {
+        if (bytes < 1024) return bytes + ' B';
+        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+        return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    }
+
+    // Get file type category
+    function getFileType(file) {
+        if (file.type.startsWith('image/')) return 'image';
+        if (file.type.startsWith('video/')) return 'video';
+        if (file.type === 'application/pdf') return 'pdf';
+        return 'file';
+    }
+
+    // Handle file selection
+    function handleFile(file) {
+        const maxSize = 100 * 1024 * 1024; // 100MB
+        if (file.size > maxSize) {
+            alert('File too large (max 100MB)');
+            return;
+        }
+
+        const allowedTypes = [
+            'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml',
+            'video/mp4', 'video/webm', 'video/quicktime', 'video/x-msvideo',
+            'application/pdf'
+        ];
+
+        if (!allowedTypes.includes(file.type)) {
+            alert('Invalid file type. Allowed: images, GIFs, videos, PDFs');
+            return;
+        }
+
+        pendingFile = file;
+        const fileType = getFileType(file);
+
+        // Show file info
+        fileName.textContent = file.name;
+        fileSize.textContent = formatFileSize(file.size);
+        uploadInfo.style.display = 'flex';
+        uploadProgress.style.display = 'none';
+
+        // Show preview based on type
+        if (fileType === 'image') {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                previewContent.innerHTML = `<img id="previewImage" src="${e.target.result}" alt="Preview">`;
+            };
+            reader.readAsDataURL(file);
+        } else if (fileType === 'video') {
+            const url = URL.createObjectURL(file);
+            previewContent.innerHTML = `<video src="${url}" muted></video>`;
+        } else if (fileType === 'pdf') {
+            previewContent.innerHTML = `<div class="file-icon">📄</div>`;
+        } else {
+            previewContent.innerHTML = `<div class="file-icon">📁</div>`;
+        }
+
+        uploadPreview.style.display = 'flex';
+        sendBtn.disabled = false;
     }
 
     removePreview.addEventListener('click', () => {
-        pendingImage = null;
+        pendingFile = null;
         uploadPreview.style.display = 'none';
+        uploadInfo.style.display = 'none';
+        uploadProgress.style.display = 'none';
+        previewContent.innerHTML = '<img id="previewImage" src="" alt="Preview">';
         sendBtn.disabled = !messageInput.value.trim();
     });
 
-    async function sendImage() {
-        if (!pendingImage) return;
+    async function sendFile() {
+        if (!pendingFile) return;
         const keyword = window.ROOM_KEYWORD;
+        const fileType = getFileType(pendingFile);
 
-        console.log('[Room] Starting sendImage process. Current WebSocket state:', ws?.readyState);
+        console.log('[Room] Starting file upload process. Type:', fileType, 'Size:', formatFileSize(pendingFile.size));
 
-        // Show loader and disable inputs
+        // Show progress UI
         sendBtn.disabled = true;
         sendBtn.classList.add('loading');
-        messageInput.disabled = true; // Prevent typing while uploading
-
-        const loader = document.createElement('div');
-        loader.className = 'upload-overlay';
-        loader.innerHTML = '<div class="loader-dot"></div>';
-        uploadPreview.appendChild(loader);
+        messageInput.disabled = true;
+        uploadProgress.style.display = 'flex';
+        progressBar.style.setProperty('--progress', '0%');
+        progressText.textContent = '0%';
 
         try {
-            console.log('[Room] Step 1: Requesting upload URL for:', pendingImage.name);
+            // Step 1: Request upload URL
+            console.log('[Room] Step 1: Requesting upload URL');
             const response = await fetch(window.FEKO_CONFIG.getApiUrl('/api/room/' + keyword + '/upload'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    filename: pendingImage.name || 'image.png',
-                    contentType: pendingImage.type || 'image/png',
-                    size: pendingImage.size
+                    filename: pendingFile.name || 'file',
+                    contentType: pendingFile.type,
+                    size: pendingFile.size
                 }),
             });
 
@@ -470,41 +562,58 @@
             const data = await response.json();
             const { key, fileUrl, uploadUrl } = data;
 
-            console.log('[Room] Step 2: Uploading file to R2 via Worker:', uploadUrl);
+            // Step 2: Upload with progress tracking using XMLHttpRequest
+            console.log('[Room] Step 2: Uploading file to R2');
             const formData = new FormData();
-            formData.append('file', pendingImage);
+            formData.append('file', pendingFile);
             formData.append('key', key);
 
-            const uploadResponse = await fetch(window.FEKO_CONFIG.getApiUrl(uploadUrl), {
-                method: 'POST',
-                body: formData
+            const uploadResult = await new Promise((resolve, reject) => {
+                const xhr = new XMLHttpRequest();
+
+                xhr.upload.addEventListener('progress', (e) => {
+                    if (e.lengthComputable) {
+                        const percent = Math.round((e.loaded / e.total) * 100);
+                        progressBar.style.setProperty('--progress', percent + '%');
+                        progressText.textContent = percent + '% (' + formatFileSize(e.loaded) + ' / ' + formatFileSize(e.total) + ')';
+                    }
+                });
+
+                xhr.addEventListener('load', () => {
+                    if (xhr.status >= 200 && xhr.status < 300) {
+                        try {
+                            resolve(JSON.parse(xhr.responseText));
+                        } catch {
+                            resolve({ fileUrl });
+                        }
+                    } else {
+                        reject(new Error('Upload failed: ' + xhr.statusText));
+                    }
+                });
+
+                xhr.addEventListener('error', () => reject(new Error('Network error during upload')));
+                xhr.addEventListener('abort', () => reject(new Error('Upload aborted')));
+
+                xhr.open('POST', window.FEKO_CONFIG.getApiUrl(uploadUrl));
+                xhr.send(formData);
             });
 
-            if (uploadResponse.ok) {
-                console.log('[Room] Step 3: Upload successful! Parsing response...');
-                // The worker returns JSON with { success: true, fileUrl: ... }
-                const result = await uploadResponse.json().catch(() => ({}));
-                const finalUrl = result.fileUrl || fileUrl;
+            // Step 3: Send message
+            const finalUrl = uploadResult.fileUrl || fileUrl;
+            console.log('[Room] Step 3: Sending WebSocket message for file:', finalUrl);
+            sendMessage(fileType, finalUrl);
 
-                console.log('[Room] Step 4: Sending WebSocket message for image:', finalUrl);
-                sendMessage('image', finalUrl);
+            // Clear state
+            removePreview.click();
 
-                // Clear state
-                removePreview.click();
-            } else {
-                const errBody = await uploadResponse.text();
-                console.error('[Room] Upload failed on R2 stage:', errBody);
-                throw new Error('R2 Upload failed: ' + (errBody || uploadResponse.statusText));
-            }
         } catch (e) {
-            console.error('[Room] CATASTROPHIC UPLOAD ERROR:', e);
+            console.error('[Room] Upload error:', e);
             alert('Upload failed: ' + e.message);
         } finally {
-            console.log('[Room] Resetting UI state after upload attempt');
+            console.log('[Room] Resetting UI state');
             sendBtn.disabled = false;
             sendBtn.classList.remove('loading');
             messageInput.disabled = false;
-            if (loader.parentNode) loader.parentNode.removeChild(loader);
             messageInput.focus();
         }
     }

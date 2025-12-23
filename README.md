@@ -20,6 +20,19 @@ FekoYaha is a modern, real-time communication platform built on the edge. No sig
 - **Storage**: Cloudflare R2 (Images/Media)
 - **Metadata**: Cloudflare KV (Room Tracking)
 
+## 🏗️ Architecture
+
+FekoYaha runs entirely on Cloudflare's edge network. The architecture leverages **Durable Objects** for real-time WebSocket coordination and persistent state management.
+
+![Architecture Diagram](public/assets/arch%20diagram.png)
+
+### How It Works
+1. **User joins a room** → Worker routes to the correct Durable Object based on keyword
+2. **WebSocket established** → DO maintains all connections for real-time messaging
+3. **Messages sent** → DO broadcasts to all connected clients and persists to storage
+4. **Files uploaded** → Worker streams directly to R2, returns URL to chat
+5. **Admin actions** → Worker validates password, proxies requests to target DO
+
 ## 🚀 Deployment
 Deploy to Cloudflare in seconds:
 
