@@ -1,85 +1,89 @@
 import { useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowRight, Image, MessageSquareText, ShieldCheck, Zap } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Logo, Wordmark } from '@/components/Logo'
-import { KEYWORD_REGEX, normalizeKeyword } from '@/lib/config'
+import { ArrowRight, Database, Image, MessageSquare, Monitor } from 'lucide-react'
+import { toast } from 'sonner'
+import { Logo } from '@/components/Logo'
+import { KEYWORD_REGEX } from '@/lib/config'
 
+// Wording, order and sizes follow the original FekoYaha homepage.
 const FEATURES = [
-  { icon: Zap, title: 'Instant', text: 'Pick a keyword and you are in. No signup, no install.' },
-  { icon: Image, title: 'Share anything', text: 'Images, video, audio, PDFs, documents and archives up to 100 MB.' },
-  { icon: ShieldCheck, title: 'Private', text: 'No accounts, no tracking. Rooms live only while they are used.' },
+  { icon: MessageSquare, label: 'real-time' },
+  { icon: Image, label: 'images' },
+  { icon: Monitor, label: 'cross-device' },
+  { icon: Database, label: 'persistent' },
 ]
 
 export function Home() {
   const navigate = useNavigate()
   const [keyword, setKeyword] = useState('')
 
-  const normalized = normalizeKeyword(keyword)
-  const valid = KEYWORD_REGEX.test(normalized)
-
   const onSubmit = (e: FormEvent) => {
     e.preventDefault()
-    if (valid) navigate('/' + normalized)
+    const value = keyword.trim().toLowerCase()
+    if (!KEYWORD_REGEX.test(value)) {
+      toast.error('Invalid keyword. Use 1-32 lowercase letters and numbers only.')
+      return
+    }
+    navigate('/' + value)
   }
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-5xl flex-col items-center justify-center gap-10 px-5 py-12">
-      <div className="flex w-full max-w-xl flex-col items-center gap-7 text-center animate-rise">
-        <div className="flex items-center gap-3">
-          <Logo className="size-11" />
-          <Wordmark className="text-2xl" />
-        </div>
-
-        <div className="space-y-3">
-          <h1 className="text-4xl font-extrabold tracking-tight sm:text-5xl">
-            Throw it <span className="text-primary">here.</span>
-          </h1>
-          <p className="mx-auto max-w-md text-balance text-muted-foreground">
-            Instant chat &amp; file-sharing rooms. Share a keyword with anyone and start throwing files back and forth.
-          </p>
-        </div>
-
-        <form onSubmit={onSubmit} className="w-full max-w-md">
-          <div className="glass glow-ring flex items-center gap-2 rounded-2xl p-2">
-            <span className="pl-3 text-lg font-semibold text-muted-foreground">#</span>
-            <Input
-              autoFocus
-              value={keyword}
-              onChange={(e) => setKeyword(e.target.value)}
-              placeholder="pick-a-keyword"
-              aria-label="Room keyword"
-              className="h-11 border-0 bg-transparent text-base shadow-none focus-visible:ring-0 dark:bg-transparent"
-            />
-            <Button type="submit" size="lg" disabled={!valid} className="shrink-0 rounded-xl font-semibold">
-              Enter <ArrowRight className="size-4" />
-            </Button>
+    <main className="grid min-h-[100dvh] grid-cols-1 place-items-center px-4 py-10">
+      <div className="glass w-full max-w-[800px] rounded-[40px] px-5 py-14 text-center animate-rise sm:px-8 sm:py-16">
+        <div className="mx-auto max-w-[600px]">
+          <div className="flex flex-col items-center">
+            <Logo className="size-[150px] drop-shadow-[0_0_20px_rgba(99,102,241,0.6)] motion-safe:animate-float" />
+            <h1 className="mt-2 text-[2.75rem] font-bold leading-tight tracking-[-1px] text-primary sm:text-[3.5rem]">
+              Feko Yaha
+            </h1>
           </div>
-          <p className="mt-2 h-4 text-left text-xs text-muted-foreground">
-            {keyword && !valid ? 'Letters and numbers only, up to 32 characters.' : 'The room is created if it does not exist yet.'}
-          </p>
-        </form>
-      </div>
 
-      <div className="grid w-full max-w-3xl gap-4 sm:grid-cols-3">
-        {FEATURES.map((f, i) => (
-          <div
-            key={f.title}
-            className="glass animate-rise rounded-2xl p-5 text-left"
-            style={{ animationDelay: `${0.1 + i * 0.08}s` }}
-          >
-            <f.icon className="mb-3 size-5 text-primary" />
-            <h3 className="font-semibold">{f.title}</h3>
-            <p className="mt-1 text-sm text-muted-foreground">{f.text}</p>
+          <h2 className="mt-1 text-[1.8rem] font-semibold sm:text-[2.2rem]">Throw it here.</h2>
+          <p className="mt-2 text-lg text-muted-foreground">No signup. No tracking. Just share.</p>
+
+          <form onSubmit={onSubmit} className="mt-12 sm:mt-14">
+            <div className="flex items-center gap-2 rounded-full border-[1.5px] border-primary/40 bg-black/30 py-2 pr-2 pl-6 shadow-[0_0_20px_rgba(0,212,212,0.1)] transition-all duration-300 focus-within:scale-[1.02] focus-within:border-primary focus-within:shadow-[0_0_30px_rgba(0,229,229,0.3)]">
+              <input
+                autoFocus
+                value={keyword}
+                onChange={(e) => setKeyword(e.target.value.toLowerCase().replace(/[^a-z0-9]/g, ''))}
+                placeholder="Create or join a room by typing a keyword"
+                aria-label="Room keyword"
+                autoComplete="off"
+                spellCheck={false}
+                maxLength={32}
+                className="w-0 min-w-0 flex-1 bg-transparent py-3 text-base text-foreground outline-none placeholder:text-foreground/40 sm:text-[1.1rem]"
+              />
+              <button
+                type="submit"
+                aria-label="Enter room"
+                className="grid h-12 w-16 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#00c9ff] to-[#92fec7] shadow-[0_0_15px_rgba(0,201,255,0.4)] transition hover:scale-105 hover:shadow-[0_0_25px_rgba(0,201,255,0.6)] sm:w-20"
+              >
+                <ArrowRight className="size-6 text-white" strokeWidth={2.5} />
+              </button>
+            </div>
+          </form>
+
+          <div className="mt-12 flex flex-wrap justify-center gap-x-10 gap-y-4 sm:mt-14">
+            {FEATURES.map((f) => (
+              <div
+                key={f.label}
+                className="flex items-center gap-3 text-[0.95rem] text-foreground/70 transition-colors hover:text-primary"
+              >
+                <f.icon className="size-[18px] text-primary/80" />
+                <span>{f.label}</span>
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
 
-      <footer className="flex items-center gap-2 text-sm text-muted-foreground">
-        <MessageSquareText className="size-4" />
-        <span>Made for quick, throwaway sharing.</span>
-      </footer>
+          <div className="mt-16 text-sm text-foreground/40">
+            <p className="mb-6">wid antigravity on random saturday</p>
+            <p className="text-[0.85rem] text-foreground/60">
+              Made with <span>❤️</span> by <strong className="font-semibold text-primary">tazer</strong>
+            </p>
+          </div>
+        </div>
+      </div>
     </main>
   )
 }

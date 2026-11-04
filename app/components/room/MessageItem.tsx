@@ -63,7 +63,7 @@ function FileBody({ msg, own, onImage }: { msg: Message; own: boolean; onImage: 
         <span className="block truncate text-sm font-medium">{name}</span>
         <span className="block text-xs text-muted-foreground">
           {msg.size ? formatFileSize(msg.size) + ' · ' : ''}
-          {msg.type === 'pdf' ? 'Open PDF' : 'Download'}
+          {msg.type === 'pdf' ? 'Click to open PDF' : 'Download'}
         </span>
       </span>
       {msg.type === 'pdf' ? <FileText className="size-4 shrink-0 text-muted-foreground" /> : <Download className="size-4 shrink-0 text-muted-foreground" />}
@@ -110,7 +110,7 @@ export function MessageItem({
         {!grouped && (
           <div className={cn('mb-1 flex items-baseline gap-2', own && 'flex-row-reverse')}>
             <span className="text-sm font-semibold" style={{ color }}>
-              {own ? 'You' : msg.sender.nickname}
+              {msg.sender.nickname}
             </span>
             <span className="text-[11px] text-muted-foreground">{formatTime(msg.timestamp)}</span>
           </div>

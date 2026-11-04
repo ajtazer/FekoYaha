@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ClipboardEvent, type KeyboardEvent } from 'react'
-import { Paperclip, SendHorizonal, X } from 'lucide-react'
+import { Plus, Send, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { uploadFile } from '@/lib/api'
@@ -13,11 +13,15 @@ const PASTE_EXT: Record<string, string> = {
 
 export function Composer({
   keyword,
+  nickname,
+  color,
   disabled,
   externalFile,
   onSend,
 }: {
   keyword: string
+  nickname: string
+  color: string
   disabled: boolean
   externalFile?: File | null
   onSend: (type: MessageKind, content: string, extra?: { name?: string; size?: number }) => boolean
@@ -48,11 +52,11 @@ export function Composer({
   const chooseFile = (file: File | null | undefined) => {
     if (!file) return
     if (file.size > MAX_FILE_BYTES) {
-      toast.error('That file is over the 100 MB limit.')
+      toast.error('File too large (max 100MB)')
       return
     }
     if (!fileKindFor(file.name)) {
-      toast.error("That file type isn't supported.")
+      toast.error('Invalid file type. Allowed: images, GIFs, videos, audio, PDFs, documents, archives')
       return
     }
     setPending(file)
@@ -78,7 +82,7 @@ export function Composer({
         onSend(result.kind, result.fileUrl, { name: result.name, size: result.size })
         clearPending()
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : 'Upload failed')
+        toast.error('Upload failed: ' + (err instanceof Error ? err.message : 'Unknown error'))
         setProgress(null)
       }
       return
@@ -86,7 +90,7 @@ export function Composer({
     const trimmed = text.trim()
     if (!trimmed) return
     if (onSend('text', trimmed)) setText('')
-    else toast.error('Not connected — your message was not sent.')
+    else toast.error('Connection lost. Please wait a moment or refresh.')
   }
 
   const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -121,6 +125,12 @@ export function Composer({
 
   return (
     <div className="glass rounded-2xl p-2">
+      {nickname && (
+        <div className="mb-1.5 flex items-center gap-2 px-2 pt-0.5 text-xs">
+          <span className="size-2.5 rounded-full" style={{ background: color }} />
+          <span className="font-medium text-foreground/80">{nickname}</span>
+        </div>
+      )}
       {pending && (
         <div className="mb-2 flex items-center gap-3 rounded-xl bg-background/40 p-2">
           {preview ? (
@@ -155,9 +165,10 @@ export function Composer({
           className="size-10 shrink-0 rounded-xl text-muted-foreground"
           onClick={() => inputRef.current?.click()}
           disabled={uploading}
-          aria-label="Attach a file"
+          title="Attach file (Images, GIFs, Videos, Audio, PDFs, Docs, Archives - max 100MB)"
+          aria-label="Attach file"
         >
-          <Paperclip className="size-5" />
+          <Plus className="size-5" />
         </Button>
         <textarea
           ref={textRef}
@@ -166,7 +177,7 @@ export function Composer({
           onKeyDown={onKeyDown}
           onPaste={onPaste}
           rows={1}
-          placeholder={pending ? 'Add a caption or just send…' : 'Type a message, or drop a file…'}
+          placeholder="Type a message or paste an image..."
           className="max-h-40 flex-1 resize-none bg-transparent px-2 py-2.5 text-sm outline-none placeholder:text-muted-foreground"
         />
         <Button
@@ -177,7 +188,7 @@ export function Composer({
           disabled={uploading || (!pending && !text.trim())}
           aria-label="Send"
         >
-          <SendHorizonal className="size-5" />
+          <Send className="size-5" />
         </Button>
       </div>
     </div>

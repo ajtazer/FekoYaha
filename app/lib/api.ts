@@ -14,14 +14,13 @@ export async function getRoomInfo(keyword: string): Promise<RoomInfo> {
   return asJson<RoomInfo>(await fetch(apiUrl(`/api/room/${keyword}/info`)))
 }
 
-// Idempotent: the server replies 409 if the room already exists, which we treat
-// as success. Creating a room is what gives it the metadata that lets the
-// server accept file messages, so the app calls this when entering any room.
-export async function ensureRoom(keyword: string): Promise<void> {
+// Creates the room (the original "Create Room" step). A 409 means someone else
+// created it a moment ago, which is fine: the room exists either way.
+export async function createRoom(keyword: string): Promise<void> {
   const res = await fetch(apiUrl(`/api/room/${keyword}/create`), { method: 'POST' })
-  if (!res.ok && res.status !== 409) {
-    throw new Error(`Could not open the room (${res.status})`)
-  }
+  if (res.ok || res.status === 409) return
+  const data = await res.json().catch(() => ({}))
+  throw new Error((data as { error?: string }).error || 'Failed to create room')
 }
 
 // Two-step upload with progress. Step 1 pre-checks; step 2 streams the file and

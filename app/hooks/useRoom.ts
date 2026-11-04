@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { wsUrl } from '@/lib/config'
 import type { Message, MessageKind, Sender } from '@/lib/types'
+import { toast } from 'sonner'
 
 export type ConnectionState = 'connecting' | 'open' | 'closed'
 
@@ -82,6 +83,7 @@ export function useRoom(keyword: string, nickname: string, color: string): UseRo
           case 'error': {
             const message = (data.payload as { message: string }).message || ''
             if (/deleted/i.test(message)) setDeleted(message)
+            else if (message) toast.error(message)
             break
           }
         }
