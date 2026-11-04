@@ -5,9 +5,12 @@
     <meta charset="utf-8">
     <title>FekoYaha</title>
     <script type="text/javascript">
-        // GitHub Pages SPA Hero
+        // GitHub Pages SPA redirect
         // https://github.com/rafgraph/spa-github-pages
-        var pathSegmentsToKeep = 1;
+        // Keep the repo name only on <user>.github.io/<repo>/. On the custom
+        // domain the app lives at the root; keeping a segment there sent
+        // /room to /room/?/, which 404ed again and redirected forever.
+        var pathSegmentsToKeep = window.location.hostname.endsWith('github.io') ? 1 : 0;
 
         var l = window.location;
         l.replace(
