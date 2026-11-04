@@ -7,18 +7,28 @@ FekoYaha is a modern, real-time communication platform built on the edge. No sig
 
 ## ✨ Features
 - **🚀 Ultra-Fast Real-time Chat**: Powered by Cloudflare Durable Objects for low-latency message broadcasting.
-- **🖼️ Instant Media Sharing**: Direct-to-R2 image uploads with real-time pulsing loaders and previews.
-- **🌌 Cyber-Glassmorphism UI**: A stunning, responsive design with starry backgrounds and neon cyan accents.
-- **⚡ Persistent History**: Infinite scroll search through hundreds of messages, stored safely in R2.
-- **🛡️ Admin Dashboard**: Full control over rooms (Lock, Clear, Delete) with detailed participant metadata (IP, Location, Device).
-- **🔒 Privacy First**: No signup, no cookies, and no tracking. Just pick a keyword and start sharing.
+- **🖼️ Share almost anything**: Images, video, audio, PDFs, documents and archives (up to 100 MB), streamed to R2 with inline previews and an upload progress bar.
+- **🌌 Cyber-glass UI**: A responsive React + shadcn/ui interface with a starfield/aurora background and neon-cyan accents.
+- **⚡ Persistent history**: Recent messages are kept in the room's Durable Object and replayed on join.
+- **🛡️ Admin dashboard**: Lock, clear or delete rooms, with participant metadata (location, device, IP).
+- **🔒 Privacy first**: No signup, no cookies, no tracking. Just pick a keyword and start sharing.
 
 ## 🛠️ Tech Stack
-- **Frontend**: Vanilla JS, CSS3 (Custom Glassmorphism Design System)
+- **Frontend**: React + TypeScript, Vite, Tailwind CSS v4, shadcn/ui
 - **Backend Server**: Cloudflare Workers
 - **State Management**: Cloudflare Durable Objects (WebSocket Hibernation API)
-- **Storage**: Cloudflare R2 (Images/Media)
-- **Metadata**: Cloudflare KV (Room Tracking)
+- **Storage**: Cloudflare R2 (files)
+- **Metadata**: Cloudflare KV (room tracking)
+
+## 💻 Develop
+```bash
+npm install
+npm run dev          # Vite dev server (frontend)
+npm run dev:worker   # wrangler dev (backend) in another terminal
+npm run build        # type-check + build the frontend into dist/
+```
+The frontend deploys to GitHub Pages automatically on push to `main`
+(`.github/workflows/deploy.yml`). Deploy the Worker with `npm run deploy`.
 
 ## 🏗️ Architecture
 

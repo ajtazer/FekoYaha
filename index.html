@@ -5,6 +5,25 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <link rel="icon" href="/assets/icon.png" type="image/png" />
     <title>FekoYaha — throw it here</title>
+    <script>
+      // GitHub Pages SPA: 404.html redirects a deep link (e.g. /myroom) to
+      // "/?/myroom"; restore the real path before React Router mounts.
+      // https://github.com/rafgraph/spa-github-pages
+      ;(function (l) {
+        if (l.search[1] === '/') {
+          var decoded = l.search
+            .slice(1)
+            .split('&')
+            .map(function (s) { return s.replace(/~and~/g, '&') })
+            .join('?')
+          var parts = decoded.split('?')
+          var path = parts[0].replace(/\/+$/, '') || '/'
+          var query = parts.slice(1).join('?')
+          if (query && query.charAt(0) !== '/') path += '?' + query
+          window.history.replaceState(null, null, path + l.hash)
+        }
+      })(window.location)
+    </script>
     <meta name="description" content="Instant, no-login chat and file sharing rooms. Pick a keyword and start sharing." />
     <meta name="theme-color" content="#0b1220" />
 

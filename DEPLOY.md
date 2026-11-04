@@ -50,18 +50,19 @@ Your app will be live at: `https://fekoyaha.<your-subdomain>.workers.dev`
 
 ---
 
-## ⚠️ About GitHub Pages
+## Architecture: two parts
 
-**GitHub Pages won't work for this app** because:
-- It only hosts static files (HTML, CSS, JS)
-- FekoYaha needs a backend (Workers, Durable Objects, R2, WebSockets)
+FekoYaha is deployed in two pieces:
 
-**Cloudflare Workers** provides everything needed:
-- Edge computing (backend)
-- Durable Objects (persistent rooms)
-- R2 (file storage)
-- WebSocket support
-- Free tier: 100,000 requests/day
+- **Frontend** (this repo's `app/`, built with Vite to `dist/`) is a static
+  React site hosted on **GitHub Pages**. It deploys automatically on push to
+  `main` via `.github/workflows/deploy.yml`, and talks to the backend over
+  HTTPS + WebSocket.
+- **Backend** (`src/`) runs on **Cloudflare Workers** with Durable Objects
+  (rooms), R2 (files) and KV (room tracking). Deploy it with `npm run deploy`.
+
+The frontend finds the backend automatically: `localhost` uses a local
+`wrangler dev`, production uses the Worker URL (see `app/lib/config.ts`).
 
 ---
 
