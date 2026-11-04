@@ -1,4 +1,23 @@
-import type { Env, Message, Sender, WSMessage, RoomMetadata, MessageType } from './types';
+import type { Env, Message, Sender, WSMessage, RoomMetadata, MessageType, MessagePayload } from './types';
+import { FILE_KINDS, MAX_FILE_BYTES, cleanFileName, isRoomFileUrl } from './files';
+
+interface ClientLocation {
+  city?: string;
+  country?: string;
+  region?: string;
+  colo?: string;
+}
+
+function pickLocation(raw: string | null): ClientLocation | null {
+  if (!raw) return null;
+  try {
+    const cf = JSON.parse(raw);
+    const field = (value: unknown) => (typeof value === 'string' ? value.slice(0, 64) : undefined);
+    return { city: field(cf.city), country: field(cf.country), region: field(cf.region), colo: field(cf.colo) };
+  } catch {
+    return null;
+  }
+}
 
 interface ConnectedClient {
   nickname: string;
@@ -228,13 +247,17 @@ export class Room implements DurableObject {
     const pair = new WebSocketPair();
     const [client, server] = Object.values(pair);
 
-    // Get metadata
-    const nickname = url.searchParams.get('nickname') || 'Anonymous';
-    const color = url.searchParams.get('color') || this.generateColor();
-    const ip = request.headers.get('X-Client-IP') || 'unknown';
-    const ua = request.headers.get('User-Agent') || 'unknown';
-    const cfRaw = request.headers.get('X-Client-CF');
-    const cf = cfRaw ? JSON.parse(cfRaw) : null;
+    // Get metadata. Nickname and color come straight from the URL; clients put
+    // the color into style attributes, so only a plain hex color is accepted.
+    const nickname = (url.searchParams.get('nickname') || '').trim().slice(0, 32) || 'Anonymous';
+    const requestedColor = url.searchParams.get('color') || '';
+    const color = /^#[0-9a-fA-F]{6}$/.test(requestedColor) ? requestedColor : this.generateColor();
+    const ip = (request.headers.get('X-Client-IP') || 'unknown').slice(0, 64);
+    const ua = (request.headers.get('User-Agent') || 'unknown').slice(0, 256);
+    // Keep only the location fields the admin dashboard shows. The whole
+    // request.cf object can push the socket attachment past its 2 KB limit,
+    // which makes the WebSocket upgrade throw and the visitor can't join.
+    const cf = pickLocation(request.headers.get('X-Client-CF'));
 
     const meta: ConnectedClient = {
       nickname,
@@ -317,7 +340,7 @@ export class Room implements DurableObject {
           this.sendToClient(ws, { type: 'pong' } as any);
           break;
         case 'message':
-          await this.handleMessage(ws, meta, data.payload as { type: MessageType; content: string });
+          await this.handleMessage(ws, meta, (data.payload ?? {}) as MessagePayload);
           break;
       }
     } catch (error) {
@@ -347,7 +370,7 @@ export class Room implements DurableObject {
     this.broadcastUsers();
   }
 
-  private async handleMessage(ws: WebSocket, meta: ConnectedClient, payload: { type: MessageType; content: string }): Promise<void> {
+  private async handleMessage(ws: WebSocket, meta: ConnectedClient, payload: MessagePayload): Promise<void> {
     if (this.isLocked) {
       this.sendToClient(ws, {
         type: 'error',
@@ -356,15 +379,38 @@ export class Room implements DurableObject {
       return;
     }
 
-    if (!payload.content || payload.content.trim().length === 0) return;
+    const reject = (reason: string) => this.sendToClient(ws, { type: 'error', payload: { message: reason } });
+
+    const content = typeof payload.content === 'string' ? payload.content.trim() : '';
+    if (!content) return;
+
+    // Clients may send text or files; 'system' messages only come from the room.
+    const type = payload.type || 'text';
+    if (typeof type !== 'string' || (type !== 'text' && !FILE_KINDS.has(type))) {
+      reject('Unsupported message type.');
+      return;
+    }
 
     const message: Message = {
       id: crypto.randomUUID(),
-      type: payload.type || 'text',
-      content: payload.content.trim(),
+      type: type as MessageType,
+      content,
       sender: { nickname: meta.nickname, color: meta.color },
       timestamp: Date.now(),
     };
+
+    // A file message must point at a file that was uploaded to this room.
+    if (type !== 'text') {
+      if (!this.metadata || !isRoomFileUrl(content, this.metadata.keyword)) {
+        reject('Invalid file message.');
+        return;
+      }
+      if (typeof payload.name === 'string') message.name = cleanFileName(payload.name);
+      if (typeof payload.size === 'number' && Number.isInteger(payload.size)
+        && payload.size > 0 && payload.size <= MAX_FILE_BYTES) {
+        message.size = payload.size;
+      }
+    }
 
     this.messages.push(message);
 

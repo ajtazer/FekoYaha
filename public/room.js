@@ -6,6 +6,25 @@
         '#FF9800', '#FF5722', '#795548', '#607D8B',
     ];
 
+    // Upload allow-list: extension -> how the file is shown. Mirrors
+    // src/files.ts, which re-checks every upload on the server.
+    const FILE_KINDS = {
+        jpg: 'image', jpeg: 'image', png: 'image', gif: 'image', webp: 'image', avif: 'image', bmp: 'image',
+        mp4: 'video', m4v: 'video', webm: 'video', mov: 'video',
+        mp3: 'audio', wav: 'audio', ogg: 'audio', oga: 'audio', opus: 'audio', m4a: 'audio', aac: 'audio', flac: 'audio',
+        pdf: 'pdf',
+        svg: 'file', heic: 'file', avi: 'file', mkv: 'file',
+        txt: 'file', md: 'file', csv: 'file', json: 'file', rtf: 'file',
+        doc: 'file', docx: 'file', xls: 'file', xlsx: 'file', ppt: 'file', pptx: 'file',
+        odt: 'file', ods: 'file', odp: 'file', epub: 'file',
+        zip: 'file', '7z': 'file', rar: 'file', tar: 'file', gz: 'file',
+    };
+    const MAX_FILE_BYTES = 100 * 1024 * 1024;
+    // Only URLs of files uploaded here are rendered as media. Older uploads
+    // kept the original extension's case, hence the wider extension match.
+    const FILE_URL_RE = /^\/files\/[a-z0-9_]+\/\d+-[0-9a-f-]{36}\.[A-Za-z0-9]{1,16}$/;
+    const HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/;
+
     // State
     let ws = null;
     let reconnectAttempts = 0;
@@ -305,49 +324,109 @@
         }
     }
 
+    // Messages are built with DOM APIs only: everything in them comes from
+    // other people, so none of it may ever be parsed as HTML.
+    function el(tag, className, text) {
+        const node = document.createElement(tag);
+        if (className) node.className = className;
+        if (text !== undefined) node.textContent = text;
+        return node;
+    }
+
+    function safeColor(color) {
+        return HEX_COLOR_RE.test(color) ? color : '#607D8B';
+    }
+
+    function fileIcon(name, kind) {
+        if (kind === 'pdf') return '📄';
+        if (kind === 'audio') return '🎵';
+        const ext = (name.split('.').pop() || '').toLowerCase();
+        if (['zip', '7z', 'rar', 'tar', 'gz'].includes(ext)) return '🗜️';
+        if (['doc', 'docx', 'odt', 'rtf', 'txt', 'md', 'epub'].includes(ext)) return '📝';
+        if (['xls', 'xlsx', 'ods', 'csv', 'json'].includes(ext)) return '📊';
+        if (['ppt', 'pptx', 'odp'].includes(ext)) return '📽️';
+        if (['svg', 'heic'].includes(ext)) return '🖼️';
+        if (['avi', 'mkv'].includes(ext)) return '🎞️';
+        return '📁';
+    }
+
+    function displayName(msg) {
+        return typeof msg.name === 'string' && msg.name ? msg.name : msg.content.split('/').pop();
+    }
+
+    function fileCard(msg, url) {
+        const name = displayName(msg);
+        const link = el('a', 'message-file');
+        link.href = url;
+        link.target = '_blank';
+        link.rel = 'noopener';
+        const size = Number.isFinite(msg.size) && msg.size > 0 ? formatFileSize(msg.size) + ' · ' : '';
+        const action = msg.type === 'pdf' ? 'Click to open PDF' : 'Click to download';
+        const details = el('span', 'file-details');
+        details.append(el('span', 'file-name', name), el('span', 'file-action', size + action));
+        link.append(el('span', 'file-icon', fileIcon(name, msg.type)), details);
+        return link;
+    }
+
+    function renderContent(msg) {
+        const content = typeof msg.content === 'string' ? msg.content : '';
+        if (msg.type === 'text' || !FILE_URL_RE.test(content)) {
+            return el('p', 'message-text', content);
+        }
+
+        const url = window.FEKO_CONFIG.getApiUrl(content);
+        if (msg.type === 'image') {
+            const img = el('img', 'message-image');
+            img.src = url;
+            img.alt = typeof msg.name === 'string' && msg.name ? msg.name : 'Shared image';
+            img.loading = 'lazy';
+            img.addEventListener('click', () => window.openLightbox(url));
+            return img;
+        }
+        if (msg.type === 'video') {
+            const video = el('video', 'message-video');
+            video.src = url;
+            video.controls = true;
+            video.playsInline = true;
+            video.preload = 'metadata';
+            return video;
+        }
+        if (msg.type === 'audio') {
+            const wrap = el('div', 'message-audio');
+            const audio = document.createElement('audio');
+            audio.src = url;
+            audio.controls = true;
+            audio.preload = 'metadata';
+            wrap.append(el('span', 'audio-name', '🎵 ' + displayName(msg)), audio);
+            return wrap;
+        }
+        return fileCard(msg, url); // PDFs and every other file type
+    }
+
     function createMessageElement(msg, animate = true) {
-        const div = document.createElement('div');
-        div.className = 'message' + (msg.type === 'system' ? ' system' : '');
+        const div = el('div', 'message' + (msg.type === 'system' ? ' system' : ''));
         if (!animate) div.style.animation = 'none';
 
         if (msg.type === 'system') {
-            div.innerHTML = '<span class="message-text">' + escapeHtml(msg.content) + '</span>';
-        } else {
-            const initial = msg.sender.nickname.charAt(0).toUpperCase();
-            const time = new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-            let contentHtml = '<p class="message-text">' + escapeHtml(msg.content) + '</p>';
-
-            if (msg.content.startsWith('/files/')) {
-                const fullUrl = window.FEKO_CONFIG.getApiUrl(msg.content);
-
-                if (msg.type === 'image') {
-                    contentHtml = '<img class="message-image" src="' + fullUrl + '" alt="Shared image" onclick="window.openLightbox(this.src)">';
-                } else if (msg.type === 'video') {
-                    contentHtml = `<video class="message-video" src="${fullUrl}" controls playsinline preload="metadata"></video>`;
-                } else if (msg.type === 'pdf') {
-                    const filename = msg.content.split('/').pop();
-                    contentHtml = `
-                        <a href="${fullUrl}" target="_blank" class="message-file">
-                            <span class="file-icon">📄</span>
-                            <span class="file-details">
-                                <span class="file-name">${escapeHtml(filename)}</span>
-                                <span class="file-action">Click to open PDF</span>
-                            </span>
-                        </a>`;
-                }
-            }
-
-            div.innerHTML = `
-        <div class="message-avatar" style="background: ${msg.sender.color}">${initial}</div>
-        <div class="message-content">
-          <div class="message-header">
-            <span class="message-sender" style="color: ${msg.sender.color}">${escapeHtml(msg.sender.nickname)}</span>
-            <span class="message-time">${time}</span>
-          </div>
-          ${contentHtml}
-        </div>`;
+            div.append(el('span', 'message-text', String(msg.content)));
+            return div;
         }
+
+        const nickname = String(msg.sender?.nickname || 'Anonymous');
+        const color = safeColor(msg.sender?.color);
+        const time = new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+        const avatar = el('div', 'message-avatar', nickname.charAt(0).toUpperCase());
+        avatar.style.background = color;
+
+        const sender = el('span', 'message-sender', nickname);
+        sender.style.color = color;
+        const header = el('div', 'message-header');
+        header.append(sender, el('span', 'message-time', time));
+
+        const body = el('div', 'message-content');
+        body.append(header, renderContent(msg));
+        div.append(avatar, body);
         return div;
     }
 
@@ -419,10 +498,10 @@
         sendBtn.disabled = true;
     });
 
-    function sendMessage(type, content) {
+    function sendMessage(type, content, extra = {}) {
         if (ws && ws.readyState === WebSocket.OPEN) {
             console.log('[Room] Sending message:', type);
-            ws.send(JSON.stringify({ type: 'message', payload: { type, content } }));
+            ws.send(JSON.stringify({ type: 'message', payload: { type, content, ...extra } }));
         } else {
             console.warn('[Room] Cannot send message: WebSocket not open', { type, state: ws?.readyState });
             alert('Connection lost. Please wait a moment or refresh.');
@@ -445,11 +524,15 @@
     messageInput.addEventListener('paste', (e) => {
         const items = e.clipboardData?.items;
         if (!items) return;
+        // Pasted images may arrive without a usable name; the server picks the
+        // file type from the extension, so give them one.
+        const pastedExt = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/gif': 'gif', 'image/webp': 'webp' };
         for (const item of items) {
             if (item.type.startsWith('image/')) {
                 e.preventDefault();
                 const file = item.getAsFile();
-                if (file) handleFile(file);
+                const ext = pastedExt[item.type];
+                if (file && ext) handleFile(new File([file], 'pasted-' + Date.now() + '.' + ext, { type: item.type }));
             }
         }
     });
@@ -461,35 +544,26 @@
         return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
     }
 
-    // Get file type category
-    function getFileType(file) {
-        if (file.type.startsWith('image/')) return 'image';
-        if (file.type.startsWith('video/')) return 'video';
-        if (file.type === 'application/pdf') return 'pdf';
-        return 'file';
+    // How a file will be shown, from its extension (null = not allowed)
+    function getFileKind(file) {
+        const ext = (file.name || '').split('.').pop().toLowerCase();
+        return Object.prototype.hasOwnProperty.call(FILE_KINDS, ext) ? FILE_KINDS[ext] : null;
     }
 
     // Handle file selection
     function handleFile(file) {
-        const maxSize = 100 * 1024 * 1024; // 100MB
-        if (file.size > maxSize) {
+        if (file.size > MAX_FILE_BYTES) {
             alert('File too large (max 100MB)');
             return;
         }
 
-        const allowedTypes = [
-            'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml',
-            'video/mp4', 'video/webm', 'video/quicktime', 'video/x-msvideo',
-            'application/pdf'
-        ];
-
-        if (!allowedTypes.includes(file.type)) {
-            alert('Invalid file type. Allowed: images, GIFs, videos, PDFs');
+        const fileType = getFileKind(file);
+        if (!fileType) {
+            alert("This file type isn't supported. You can share images, video, audio, PDFs, documents and archives.");
             return;
         }
 
         pendingFile = file;
-        const fileType = getFileType(file);
 
         // Show file info
         fileName.textContent = file.name;
@@ -507,10 +581,8 @@
         } else if (fileType === 'video') {
             const url = URL.createObjectURL(file);
             previewContent.innerHTML = `<video src="${url}" muted></video>`;
-        } else if (fileType === 'pdf') {
-            previewContent.innerHTML = `<div class="file-icon">📄</div>`;
         } else {
-            previewContent.innerHTML = `<div class="file-icon">📁</div>`;
+            previewContent.replaceChildren(el('div', 'file-icon', fileIcon(file.name, fileType)));
         }
 
         uploadPreview.style.display = 'flex';
@@ -529,7 +601,7 @@
     async function sendFile() {
         if (!pendingFile) return;
         const keyword = window.ROOM_KEYWORD;
-        const fileType = getFileType(pendingFile);
+        const fileType = getFileKind(pendingFile);
 
         console.log('[Room] Starting file upload process. Type:', fileType, 'Size:', formatFileSize(pendingFile.size));
 
@@ -549,7 +621,7 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     filename: pendingFile.name || 'file',
-                    contentType: pendingFile.type,
+                    contentType: pendingFile.type || 'application/octet-stream',
                     size: pendingFile.size
                 }),
             });
@@ -601,7 +673,10 @@
             // Step 3: Send message
             const finalUrl = uploadResult.fileUrl || fileUrl;
             console.log('[Room] Step 3: Sending WebSocket message for file:', finalUrl);
-            sendMessage(fileType, finalUrl);
+            sendMessage(uploadResult.kind || fileType, finalUrl, {
+                name: uploadResult.name || pendingFile.name,
+                size: uploadResult.size || pendingFile.size,
+            });
 
             // Clear state
             removePreview.click();

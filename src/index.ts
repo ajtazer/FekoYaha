@@ -1,5 +1,13 @@
 import type { Env } from './types';
 import { Room } from './room';
+import {
+  MAX_FILE_BYTES,
+  cleanFileName,
+  contentDisposition,
+  isInlineMimeType,
+  lookupFileType,
+  newFileKey,
+} from './files';
 
 // Export the Room Durable Object
 export { Room };
@@ -44,6 +52,12 @@ export default {
       object.writeHttpMetadata(headers);
       headers.set('Cache-Control', 'public, max-age=31536000');
       headers.set('Access-Control-Allow-Origin', '*');
+      headers.set('X-Content-Type-Options', 'nosniff');
+
+      // Only media and PDFs open in the browser; everything else downloads.
+      const name = object.customMetadata?.originalName || key.split('/').pop() || 'file';
+      const disposition = isInlineMimeType(headers.get('Content-Type')) ? 'inline' : 'attachment';
+      headers.set('Content-Disposition', contentDisposition(disposition, name));
 
       return new Response(object.body, { headers });
     }
@@ -170,74 +184,84 @@ export default {
         }));
       }
 
-      // ... (rest remains same but I'll update it for completeness in one block if possible)
-      // Upload request - generate signed URL for R2
+      const jsonError = (error: string, status = 400) =>
+        new Response(JSON.stringify({ error }), {
+          status,
+          headers: { 'Content-Type': 'application/json', ...corsHeaders },
+        });
+
+      // Step 1: pre-check a file before uploading it (kept for older clients).
       if (parts[4] === 'upload' && request.method === 'POST') {
-        const body = await request.json() as { filename: string; contentType: string; size: number };
-
-        // Validate file size - 100MB max
-        const maxSize = 100 * 1024 * 1024; // 100MB
-        if (body.size > maxSize) {
-          return new Response(JSON.stringify({ error: 'File too large (max 100MB)' }), {
-            status: 400,
-            headers: { 'Content-Type': 'application/json', ...corsHeaders },
-          });
+        let body: { filename?: unknown; size?: unknown };
+        try {
+          body = await request.json();
+        } catch {
+          return jsonError('Invalid request body');
         }
 
-        // Allowed file types
-        const allowedTypes = [
-          // Images
-          'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml',
-          // Videos
-          'video/mp4', 'video/webm', 'video/quicktime', 'video/x-msvideo',
-          // Documents
-          'application/pdf',
-        ];
-
-        if (!allowedTypes.includes(body.contentType)) {
-          return new Response(JSON.stringify({ error: 'Invalid file type. Allowed: images, GIFs, videos, PDFs' }), {
-            status: 400,
-            headers: { 'Content-Type': 'application/json', ...corsHeaders },
-          });
+        const filename = typeof body.filename === 'string' ? body.filename : '';
+        const size = typeof body.size === 'number' ? body.size : 0;
+        if (size <= 0 || size > MAX_FILE_BYTES) {
+          return jsonError('File too large (max 100MB)');
         }
 
-        // Generate unique key
-        const ext = body.filename.split('.').pop() || 'bin';
-        const key = `${keyword}/${Date.now()}-${crypto.randomUUID()}.${ext}`;
-        const fileUrl = `/files/${key}`;
+        const fileType = lookupFileType(filename);
+        if (!fileType) {
+          return jsonError("This file type isn't supported");
+        }
 
+        // The key here is only advisory: upload-file always generates its own.
+        const key = newFileKey(keyword, fileType.ext);
         return new Response(JSON.stringify({
           key,
-          fileUrl,
+          fileUrl: `/files/${key}`,
           uploadUrl: `/api/room/${keyword}/upload-file`,
         }), {
           headers: { 'Content-Type': 'application/json', ...corsHeaders },
         });
       }
 
-      // Direct file upload to R2
+      // Step 2: the actual upload. Everything is validated here, because a
+      // client can call this endpoint directly and skip step 1.
       if (parts[4] === 'upload-file' && request.method === 'POST') {
-        const formData = await request.formData();
-        const fileEntry = formData.get('file');
-        const keyEntry = formData.get('key');
-
-        if (!fileEntry || typeof fileEntry === 'string' || !keyEntry || typeof keyEntry !== 'string') {
-          return new Response(JSON.stringify({ error: 'Missing file or key' }), {
-            status: 400,
-            headers: { 'Content-Type': 'application/json', ...corsHeaders },
-          });
+        let formData: FormData;
+        try {
+          formData = await request.formData();
+        } catch {
+          return jsonError('Invalid upload');
         }
 
+        const fileEntry = formData.get('file');
+        if (!fileEntry || typeof fileEntry === 'string') {
+          return jsonError('Missing file');
+        }
         const file = fileEntry as File;
-        const key = keyEntry;
+
+        if (file.size <= 0 || file.size > MAX_FILE_BYTES) {
+          return jsonError('File too large (max 100MB)');
+        }
+
+        const fileType = lookupFileType(file.name);
+        if (!fileType) {
+          return jsonError("This file type isn't supported");
+        }
+
+        // Never trust a client-supplied key: it could overwrite another file.
+        const key = newFileKey(keyword, fileType.ext);
+        const name = cleanFileName(file.name);
 
         await env.BUCKET.put(key, file.stream(), {
-          httpMetadata: {
-            contentType: file.type,
-          },
+          httpMetadata: { contentType: fileType.mime },
+          customMetadata: { originalName: name },
         });
 
-        return new Response(JSON.stringify({ success: true, fileUrl: `/files/${key}` }), {
+        return new Response(JSON.stringify({
+          success: true,
+          fileUrl: `/files/${key}`,
+          name,
+          size: file.size,
+          kind: fileType.kind,
+        }), {
           headers: { 'Content-Type': 'application/json', ...corsHeaders },
         });
       }

@@ -700,11 +700,38 @@ body {
   font-size: 0.85rem;
   font-weight: 500;
   color: var(--text-primary);
+  overflow-wrap: anywhere;
 }
 
 .message-file .file-action {
   font-size: 0.7rem;
   color: var(--accent-primary);
+}
+
+.message-file {
+  max-width: 100%;
+}
+
+.message-audio {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  padding: 0.625rem 0.75rem;
+  margin-top: 0.5rem;
+  max-width: 360px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+}
+
+.message-audio .audio-name {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+
+.message-audio audio {
+  width: 100%;
 }
 
 .message.system {

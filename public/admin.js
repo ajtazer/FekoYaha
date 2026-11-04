@@ -2,6 +2,18 @@
     let adminToken = localStorage.getItem('fekoyaha_admin_token') || '';
     let currentRoom = null;
 
+    // Everything shown here (nicknames, messages, locations, user agents) comes
+    // from visitors, so it is escaped before it goes into innerHTML. Unescaped,
+    // a crafted nickname could run script here and read the admin token.
+    function esc(value) {
+        const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+        return String(value ?? '').replace(/[&<>"']/g, (c) => map[c]);
+    }
+
+    function safeColor(color) {
+        return /^#[0-9a-fA-F]{6}$/.test(color) ? color : '#607D8B';
+    }
+
     // DOM Elements
     const loginOverlay = document.getElementById('loginOverlay');
     const loginForm = document.getElementById('loginForm');
@@ -91,7 +103,7 @@
             const isActive = Date.now() - room.lastActiveAt < 5 * 60 * 1000;
 
             tr.innerHTML = `
-                <td>${room.keyword}</td>
+                <td>${esc(room.keyword)}</td>
                 <td>${formatDateTimeIST(room.createdAt)}</td>
                 <td>${formatDateTimeIST(room.lastActiveAt)}</td>
                 <td>
@@ -100,12 +112,13 @@
                     </span>
                 </td>
                 <td>
-                    <button class="btn-admin" onclick="viewRoom('${room.keyword}')">
+                    <button class="btn-admin">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
                         Inspect
                     </button>
                 </td>
             `;
+            tr.querySelector('.btn-admin').addEventListener('click', () => window.viewRoom(room.keyword));
             roomsList.appendChild(tr);
         });
     }
@@ -130,8 +143,8 @@
             const msgArea = document.getElementById('adminMessages');
             msgArea.innerHTML = data.messages.map(m => `
                 <div style="margin-bottom: 0.5rem; font-size: 0.85rem;">
-                    <span style="color: ${m.sender.color}; font-weight: 600;">${m.sender.nickname}:</span>
-                    <span style="color: var(--text-secondary);">${m.content}</span>
+                    <span style="color: ${safeColor(m.sender?.color)}; font-weight: 600;">${esc(m.sender?.nickname)}:</span>
+                    <span style="color: var(--text-secondary);">${esc(m.content)}</span>
                     <small style="color: var(--text-muted); float: right;">${new Date(m.timestamp).toLocaleTimeString()}</small>
                 </div>
             `).join('') || '<p style="color: var(--text-muted); text-align: center;">No messages</p>';
@@ -157,12 +170,12 @@
 
                 return `
                     <div class="participant-card" style="${p.isOnline ? 'border-color: rgba(16, 185, 129, 0.3);' : ''}">
-                        <strong>${statusDot}${p.nickname}</strong>
-                        <span>IP: ${p.ip === 'unknown' ? 'Detected' : p.ip}</span>
-                        <span>Loc: ${location}</span>
+                        <strong>${statusDot}${esc(p.nickname)}</strong>
+                        <span>IP: ${esc(p.ip === 'unknown' ? 'Detected' : p.ip)}</span>
+                        <span>Loc: ${esc(location)}</span>
                         <span>First Joined: ${formatDateTimeIST(p.firstJoinedAt)}</span>
                         <span>Last Seen: ${formatDateTimeIST(p.lastSeenAt)}</span>
-                        <span>Device: ${uaInfo.device} (${uaInfo.browser})</span>
+                        <span>Device: ${esc(uaInfo.device)} (${esc(uaInfo.browser)})</span>
                     </div>
                 `;
             }).join('') || '<p style="color: var(--text-muted);">No participants yet</p>';

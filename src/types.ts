@@ -19,7 +19,7 @@ export interface RoomSettings {
 }
 
 // Message types
-export type MessageType = 'text' | 'image' | 'file' | 'system';
+export type MessageType = 'text' | 'image' | 'video' | 'audio' | 'pdf' | 'file' | 'system';
 
 export interface Sender {
   nickname: string;
@@ -32,6 +32,9 @@ export interface Message {
   content: string;
   sender: Sender;
   timestamp: number;
+  // File messages only: original file name and size in bytes.
+  name?: string;
+  size?: number;
 }
 
 // WebSocket message payloads
@@ -45,9 +48,12 @@ export interface JoinPayload {
   color: string;
 }
 
+// What clients send. Everything is untrusted and validated by the room.
 export interface MessagePayload {
-  type: MessageType;
-  content: string;
+  type?: unknown;
+  content?: unknown;
+  name?: unknown;
+  size?: unknown;
 }
 
 export interface HistoryPayload {
